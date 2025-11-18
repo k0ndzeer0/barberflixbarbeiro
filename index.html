@@ -35,6 +35,123 @@
         .header-logout:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.3); }
         .header-logout:active { transform: scale(0.98); }
         
+        /* Indicador de Requisições na Fila */
+        .queue-indicator {
+            display: none;
+            padding: 6px 12px;
+            background: rgba(255, 152, 0, 0.2);
+            border: 1px solid rgba(255, 152, 0, 0.5);
+            border-radius: 6px;
+            color: #ff9800;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .queue-indicator.active {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .queue-indicator .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255, 152, 0, 0.3);
+            border-top-color: #ff9800;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #161b22;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #e50914;
+            border-radius: 8px;
+            padding: 15px 20px;
+            min-width: 300px;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toast.success {
+            border-left-color: #0f0;
+        }
+        .toast.error {
+            border-left-color: #f00;
+        }
+        .toast.warning {
+            border-left-color: #ff9800;
+        }
+        .toast.info {
+            border-left-color: #2196F3;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .toast-icon {
+            font-size: 20px;
+        }
+        .toast-content {
+            flex: 1;
+        }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+        .toast-message {
+            font-size: 0.9rem;
+            color: #8b949e;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .toast-close:hover {
+            color: #fff;
+        }
+        
+        /* Loading Spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(229, 9, 20, 0.3);
+            border-top-color: #e50914;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
         /* Content Area */
         .content-area { margin-left: 250px; flex: 1; }
         .container { max-width: 1400px; margin: 0 auto; padding: 30px; }
@@ -154,6 +271,10 @@
     <header class="header">
                 <div class="header-title" id="pageTitle">Dashboard</div>
                 <div class="header-user">
+                    <div class="queue-indicator" id="queueIndicator">
+                        <div class="spinner"></div>
+                        <span id="queueCount">0</span> requisições na fila
+                    </div>
                     <div class="header-user-info">
                         <div class="header-user-name" id="userName">Carregando...</div>
                         <div class="header-user-email" id="userEmail"></div>
@@ -443,12 +564,104 @@
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
         const SUPABASE_URL = 'https://tvvqwlxmpmolnyavabqq.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2dnF3bHhtcG1vbG55YXZhYnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwODg5MjMsImV4cCI6MjA3ODY2NDkyM30.5FW2R9rcYXpAvpAjWnviBRIjeQOVf2pZwWrYrqljdHw';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         let currentUser = null;
+        
+        // ========================================
+        // SISTEMA DE CACHE E OTIMIZAÇÕES
+        // ========================================
+        let dataCache = {
+            appointments: null,
+            shop: null,
+            lastFetch: null,
+            cacheDuration: 30000 // 30 segundos de cache
+        };
+        
+        let isLoading = false;
+        let reloadDebounceTimer = null;
+        
+        // ========================================
+        // SISTEMA DE TOAST NOTIFICATIONS
+        // ========================================
+        function showToast(title, message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || icons.info}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-remover após duração
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // ========================================
+        // ATUALIZAR INDICADOR DE FILA
+        // ========================================
+        function updateQueueIndicator() {
+            const indicator = document.getElementById('queueIndicator');
+            const countEl = document.getElementById('queueCount');
+            
+            if (!indicator || !countEl) return;
+            
+            const count = requestQueue.length;
+            
+            if (count > 0) {
+                indicator.classList.add('active');
+                countEl.textContent = count;
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+        
+        // ========================================
+        // FUNÇÃO DE RECARREGAMENTO COM DEBOUNCE
+        // ========================================
+        function debouncedReload(fn, delay = 1000) {
+            if (reloadDebounceTimer) {
+                clearTimeout(reloadDebounceTimer);
+            }
+            
+            reloadDebounceTimer = setTimeout(() => {
+                fn();
+                reloadDebounceTimer = null;
+            }, delay);
+        }
+        
+        // ========================================
+        // VERIFICAR CACHE ANTES DE BUSCAR DADOS
+        // ========================================
+        function isCacheValid() {
+            if (!dataCache.lastFetch) return false;
+            const now = Date.now();
+            return (now - dataCache.lastFetch) < dataCache.cacheDuration;
+        }
         
         async function checkAuth() {
             try {
@@ -751,11 +964,30 @@
         }
         
         async function loadBarberDashboard() {
-            // Mostrar loading
+            // Evitar múltiplos carregamentos simultâneos
+            if (isLoading) {
+                console.log('⏳ Já está carregando, aguardando...');
+                return;
+            }
+            
+            isLoading = true;
+            
+            // Mostrar loading com spinner
             document.querySelectorAll('.metric-card').forEach(card => {
                 const content = card.querySelector('.metric-value') || card.querySelector('div');
-                if (content) content.textContent = 'Carregando...';
+                if (content) {
+                    content.innerHTML = '<span class="loading-spinner"></span> Carregando...';
+                }
             });
+            
+            // Verificar cache primeiro
+            if (isCacheValid() && dataCache.appointments && dataCache.shop) {
+                console.log('📦 Usando dados do cache');
+                const { appointments, shop } = dataCache;
+                updateDashboardUI(appointments, shop);
+                isLoading = false;
+                return;
+            }
             
             try {
                 // ========================================
@@ -905,76 +1137,112 @@
                     }
                 });
                 
-                // Atualizar estatísticas
-                document.getElementById('statToday').textContent = todayAppointments.length;
-                document.getElementById('statPending').textContent = pendingAppointments.length;
-                document.getElementById('statRevenue').textContent = `R$ ${revenue.toFixed(2).replace('.', ',')}`;
-                document.getElementById('statConfirmed').textContent = confirmedAppointments.length;
+                // Salvar no cache
+                dataCache.appointments = allAppointments;
+                dataCache.shop = shop;
+                dataCache.lastFetch = Date.now();
                 
-                // Próximos agendamentos (próximas 3 horas)
-                const now = new Date();
-                const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
-                const upcoming = todayAppointments
-                    .filter(apt => {
-                        const aptTime = apt.appointment_time.split(':');
-                        const aptHour = parseInt(aptTime[0]);
-                        const aptMin = parseInt(aptTime[1]);
-                        const nowHour = now.getHours();
-                        const nowMin = now.getMinutes();
-                        const laterHour = threeHoursLater.getHours();
-                        const laterMin = threeHoursLater.getMinutes();
-                        
-                        const aptTotal = aptHour * 60 + aptMin;
-                        const nowTotal = nowHour * 60 + nowMin;
-                        const laterTotal = laterHour * 60 + laterMin;
-                        
-                        return aptTotal >= nowTotal && aptTotal <= laterTotal && 
-                               (apt.status === 'confirmed' || apt.status === 'pending');
-                    })
-                    .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time))
-                    .slice(0, 5);
-                
-                if (upcoming.length > 0) {
-                    document.getElementById('upcomingAppointments').innerHTML = upcoming.map(apt => `
-                        <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; margin-bottom: 5px;">${apt.client_email || 'Cliente'}</div>
-                                <div style="color: #999; font-size: 0.9rem;">⏰ ${apt.appointment_time}</div>
-                            </div>
-                            <span style="padding: 5px 10px; background: ${apt.status === 'confirmed' ? 'rgba(0,255,0,0.2)' : 'rgba(255,152,0,0.2)'}; border-radius: 5px; font-size: 0.85rem;">
-                                ${apt.status === 'confirmed' ? '✅ Confirmado' : '⏳ Pendente'}
-                            </span>
-                        </div>
-                    `).join('');
-                } else {
-                    document.getElementById('upcomingAppointments').innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum agendamento nas próximas 3 horas</p>';
-                }
-                
-                // Agendamentos pendentes (top 5)
-                if (pendingAppointments.length > 0) {
-                    const topPending = pendingAppointments.slice(0, 5);
-                    document.getElementById('pendingAppointments').innerHTML = topPending.map(apt => `
-                        <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <div style="font-weight: 600; margin-bottom: 5px;">📅 ${apt.appointment_date} | ⏰ ${apt.appointment_time}</div>
-                            <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
-                            <div style="color: #999; font-size: 0.9rem; margin-bottom: 10px;">${apt.notes || 'Sem observações'}</div>
-                            <div style="display: flex; flex-direction: column; gap: 8px;">
-                                <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">✅ Aceitar</button>
-                                <button class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">❌ Recusar</button>
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    document.getElementById('pendingAppointments').innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
-                }
+                // Atualizar UI
+                updateDashboardUI(allAppointments, shop);
                 
             } catch (error) {
                 console.error('❌ Erro ao carregar dashboard:', error);
+                showToast('Erro', 'Erro ao carregar dados do dashboard', 'error');
                 // Mostrar mensagem de erro
                 document.querySelectorAll('.metric-card').forEach(card => {
                     const content = card.querySelector('.metric-value') || card.querySelector('div');
                     if (content) content.textContent = 'Erro';
                 });
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        // Função para atualizar UI do dashboard (reutilizável)
+        function updateDashboardUI(allAppointments, shop) {
+            const today = new Date().toISOString().split('T')[0];
+            const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+            
+            // Filtrar agendamentos
+            const todayAppointments = allAppointments.filter(apt => apt.appointment_date === today);
+            const pendingAppointments = allAppointments.filter(apt => apt.status === 'pending');
+            const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed');
+            const monthAppointments = allAppointments.filter(apt => 
+                apt.appointment_date >= startOfMonth && 
+                (apt.status === 'confirmed' || apt.status === 'completed')
+            );
+            
+            // Calcular receita
+            let revenue = 0;
+            monthAppointments.forEach(apt => {
+                const services = apt.services || '';
+                const priceMatch = services.match(/R\$\s*(\d+[\.,]\d+)/);
+                if (priceMatch) {
+                    revenue += parseFloat(priceMatch[1].replace(',', '.'));
+                }
+            });
+            
+            // Atualizar estatísticas
+            document.getElementById('statToday').textContent = todayAppointments.length;
+            document.getElementById('statPending').textContent = pendingAppointments.length;
+            document.getElementById('statRevenue').textContent = `R$ ${revenue.toFixed(2).replace('.', ',')}`;
+            document.getElementById('statConfirmed').textContent = confirmedAppointments.length;
+            
+            // Próximos agendamentos (próximas 3 horas)
+            const now = new Date();
+            const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+            const upcoming = todayAppointments
+                .filter(apt => {
+                    const aptTime = apt.appointment_time.split(':');
+                    const aptHour = parseInt(aptTime[0]);
+                    const aptMin = parseInt(aptTime[1]);
+                    const nowHour = now.getHours();
+                    const nowMin = now.getMinutes();
+                    const laterHour = threeHoursLater.getHours();
+                    const laterMin = threeHoursLater.getMinutes();
+                    
+                    const aptTotal = aptHour * 60 + aptMin;
+                    const nowTotal = nowHour * 60 + nowMin;
+                    const laterTotal = laterHour * 60 + laterMin;
+                    
+                    return aptTotal >= nowTotal && aptTotal <= laterTotal && 
+                           (apt.status === 'confirmed' || apt.status === 'pending');
+                })
+                .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time))
+                .slice(0, 5);
+            
+            if (upcoming.length > 0) {
+                document.getElementById('upcomingAppointments').innerHTML = upcoming.map(apt => `
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">${apt.client_email || 'Cliente'}</div>
+                            <div style="color: #999; font-size: 0.9rem;">⏰ ${apt.appointment_time}</div>
+                        </div>
+                        <span style="padding: 5px 10px; background: ${apt.status === 'confirmed' ? 'rgba(0,255,0,0.2)' : 'rgba(255,152,0,0.2)'}; border-radius: 5px; font-size: 0.85rem;">
+                            ${apt.status === 'confirmed' ? '✅ Confirmado' : '⏳ Pendente'}
+                        </span>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('upcomingAppointments').innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum agendamento nas próximas 3 horas</p>';
+            }
+            
+            // Agendamentos pendentes (top 5)
+            if (pendingAppointments.length > 0) {
+                const topPending = pendingAppointments.slice(0, 5);
+                document.getElementById('pendingAppointments').innerHTML = topPending.map(apt => `
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-weight: 600; margin-bottom: 5px;">📅 ${apt.appointment_date} | ⏰ ${apt.appointment_time}</div>
+                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
+                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 10px;">${apt.notes || 'Sem observações'}</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">✅ Aceitar</button>
+                            <button class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">❌ Recusar</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('pendingAppointments').innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
             }
         }
         
@@ -1217,98 +1485,218 @@
             }
         }
         
+        // ========================================
+        // SISTEMA DE RATE LIMITING PARA GOOGLE APPS SCRIPT
+        // ========================================
+        let requestQueue = [];
+        let isProcessingQueue = false;
+        let lastRequestTime = 0;
+        const MIN_REQUEST_INTERVAL = 2000; // 2 segundos entre requisições (evita 429)
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY_BASE = 5000; // 5 segundos base para retry
+        
+        // Processar fila de requisições
+        async function processRequestQueue() {
+            if (isProcessingQueue || requestQueue.length === 0) return;
+            
+            isProcessingQueue = true;
+            
+            while (requestQueue.length > 0) {
+                const request = requestQueue[0];
+                
+                // Aguardar intervalo mínimo entre requisições
+                const timeSinceLastRequest = Date.now() - lastRequestTime;
+                if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+                    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+                    console.log(`⏳ Aguardando ${waitTime}ms antes da próxima requisição...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+                
+                try {
+                    await executeRequest(request);
+                    requestQueue.shift(); // Remover da fila se sucesso
+                    lastRequestTime = Date.now();
+                    updateQueueIndicator(); // Atualizar indicador visual
+                } catch (error) {
+                    request.retries = (request.retries || 0) + 1;
+                    
+                    if (request.retries >= MAX_RETRIES) {
+                        console.error(`❌ Máximo de tentativas atingido para requisição:`, request);
+                        requestQueue.shift(); // Remover da fila após max tentativas
+                        updateQueueIndicator(); // Atualizar indicador visual
+                        if (request.onError) request.onError(error);
+                    } else {
+                        // Retry com backoff exponencial
+                        const retryDelay = RETRY_DELAY_BASE * Math.pow(2, request.retries - 1);
+                        console.log(`🔄 Tentativa ${request.retries}/${MAX_RETRIES} falhou. Retry em ${retryDelay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        // Manter na fila para retry
+                    }
+                }
+            }
+            
+            isProcessingQueue = false;
+        }
+        
+        // Executar requisição individual
+        async function executeRequest(request) {
+            const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw0RdEwq2Y4rsUj3-Tz-1XQA9FOnnbVaWiYT_ddiVS9it6METaGnsgH_-Mbb_NopZvdNg/exec';
+            
+            console.log('📤 Enviando requisição ao Google Apps Script...', request.updateData);
+            
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request.updateData)
+                });
+                
+                // Com no-cors não conseguimos ler status, mas assumimos sucesso
+                console.log('✅ Requisição enviada com sucesso!');
+                
+                if (request.onSuccess) {
+                    request.onSuccess();
+                }
+            } catch (error) {
+                console.error('❌ Erro na requisição:', error);
+                throw error;
+            }
+        }
+        
+        // Adicionar requisição à fila
+        function queueRequest(updateData, onSuccess, onError) {
+            requestQueue.push({
+                updateData,
+                onSuccess,
+                onError,
+                retries: 0
+            });
+            
+            updateQueueIndicator(); // Atualizar indicador visual
+            processRequestQueue();
+        }
+        
         // FUNÇÕES PARA ATUALIZAR STATUS NA PLANILHA
         async function acceptAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
             if (!confirm('Confirmar este agendamento?')) return;
+            
+            // Desabilitar botões durante processamento
+            disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Confirmado', '', clientEmail, barbershopName, appointmentId);
         }
         
         async function rejectAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
             const reason = prompt('Motivo da recusa (opcional):');
             if (reason === null) return;
+            
+            disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Cancelado', reason, clientEmail, barbershopName, appointmentId);
         }
         
         async function completeAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
             if (!confirm('Marcar como concluído?')) return;
+            
+            disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Concluído', '', clientEmail, barbershopName, appointmentId);
         }
         
         async function cancelAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
             if (!confirm('Cancelar este agendamento?')) return;
+            
+            disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Cancelado', '', clientEmail, barbershopName, appointmentId);
         }
         
-        // Função para atualizar status na planilha (formato correto)
+        // Desabilitar botões durante processamento
+        function disableAppointmentButtons(id) {
+            // Desabilitar todos os botões de ação de agendamento
+            const allButtons = document.querySelectorAll('.btn');
+            allButtons.forEach(btn => {
+                if (btn.textContent.includes('Aceitar') || 
+                    btn.textContent.includes('Recusar') || 
+                    btn.textContent.includes('Concluído') || 
+                    btn.textContent.includes('Cancelar')) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                    btn.dataset.originalText = btn.textContent;
+                    btn.textContent = '⏳ Processando...';
+                }
+            });
+        }
+        
+        // Reabilitar botões após processamento
+        function enableAppointmentButtons(id) {
+            const allButtons = document.querySelectorAll('.btn');
+            allButtons.forEach(btn => {
+                if (btn.dataset.originalText) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.textContent = btn.dataset.originalText;
+                    delete btn.dataset.originalText;
+                }
+            });
+        }
+        
+        // Função para atualizar status na planilha (com rate limiting)
         async function updateAppointmentStatusInSheet(date, time, newStatus, reason = '', clientEmail = '', barbershopName = '', appointmentId = null) {
             try {
-                // Usar Google Apps Script para atualizar (mais confiável)
-                // ATUALIZAR ESTA URL COM A URL DO SEU WEB APP
-                const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw0RdEwq2Y4rsUj3-Tz-1XQA9FOnnbVaWiYT_ddiVS9it6METaGnsgH_-Mbb_NopZvdNg/exec';
-                
                 // CRÍTICO: action: 'updateStatus' DEVE estar presente para atualizar linha existente
-                // Sem isso, o Google Apps Script criará uma nova linha!
                 const updateData = {
-                    action: 'updateStatus', // OBRIGATÓRIO: Indica que é uma atualização, não criação
-                    appointment_id: appointmentId || null, // ID único (método principal - se disponível)
-                    appointment_date: date, // Data para encontrar a linha (fallback)
-                    appointment_time: time, // Hora para encontrar a linha (fallback)
-                    client_email: clientEmail || '', // Email para encontrar a linha (fallback)
-                    barbershop_name: barbershopName || '', // Nome da barbearia (opcional)
-                    status: newStatus // Novo status em português
+                    action: 'updateStatus',
+                    appointment_id: appointmentId || null,
+                    appointment_date: date,
+                    appointment_time: time,
+                    client_email: clientEmail || '',
+                    barbershop_name: barbershopName || '',
+                    status: newStatus
                 };
                 
-                console.log('🔍 Dados enviados para ATUALIZAR (não criar):', updateData);
-                console.log('⚠️ IMPORTANTE: action="updateStatus" está presente!');
+                console.log('🔍 Dados para atualizar:', updateData);
                 
-                // Validação mais rigorosa
+                // Validação
                 if (!updateData.appointment_id && (!updateData.appointment_date || !updateData.appointment_time || !updateData.client_email)) {
                     console.error('❌ ERRO: Dados insuficientes para atualizar!');
-                    console.error('   appointment_id:', updateData.appointment_id);
-                    console.error('   appointment_date:', updateData.appointment_date);
-                    console.error('   appointment_time:', updateData.appointment_time);
-                    console.error('   client_email:', updateData.client_email);
-                    alert('❌ Erro: Dados insuficientes para atualizar. Verifique o console.\n\nNecessário: ID OU (Data + Hora + Email)');
+                    showToast('Erro', 'Dados insuficientes para atualizar. Verifique o console.', 'error');
+                    enableAppointmentButtons();
                     return;
                 }
                 
-                // Log detalhado
-                if (updateData.appointment_id) {
-                    console.log('✅ Usando ID único:', updateData.appointment_id);
-                } else {
-                    console.log('⚠️ Usando fallback (data+hora+email):', {
-                        date: updateData.appointment_date,
-                        time: updateData.appointment_time,
-                        email: updateData.client_email
-                    });
-                }
-                
-                console.log('📤 Atualizando status na planilha (ATUALIZAR linha existente)...', updateData);
-                
-                const response = await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updateData)
-                });
-                
-                // Com no-cors não conseguimos ler resposta, mas assumimos sucesso
-                console.log('✅ Status atualizado na planilha (linha existente)!');
-                console.log('📋 ID usado:', updateData.appointment_id || 'fallback (data+hora+email)');
-                
-                alert(`✅ Status atualizado para: ${newStatus}`);
-                
-                // Recarregar dados IMEDIATAMENTE para remover da lista de pendentes
-                setTimeout(() => {
-                    loadAppointments();
-                    if (document.getElementById('dashboard').classList.contains('active')) {
-                        loadBarberDashboard();
+                // Adicionar à fila com callbacks
+                queueRequest(
+                    updateData,
+                    // onSuccess
+                    () => {
+                        console.log('✅ Status atualizado na planilha!');
+                        showToast('Sucesso!', `Status atualizado para: ${newStatus}`, 'success');
+                        
+                        // Invalidar cache para forçar atualização
+                        dataCache.appointments = null;
+                        dataCache.lastFetch = null;
+                        
+                        // Recarregar dados com debounce
+                        debouncedReload(() => {
+                            loadAppointments();
+                            if (document.getElementById('dashboard')?.classList.contains('active')) {
+                                loadBarberDashboard();
+                            }
+                            enableAppointmentButtons();
+                        }, 1500);
+                    },
+                    // onError
+                    (error) => {
+                        console.error('❌ Erro ao atualizar:', error);
+                        showToast('Erro ao atualizar', 'Tente novamente em alguns segundos. O sistema está limitando requisições para evitar sobrecarga.', 'error', 6000);
+                        enableAppointmentButtons();
                     }
-                }, 500); // Aumentado para 500ms para garantir que a planilha foi atualizada
+                );
                 
             } catch (error) {
                 console.error('Erro ao atualizar planilha:', error);
-                alert('Erro ao atualizar: ' + error.message);
+                showToast('Erro', error.message, 'error');
+                enableAppointmentButtons();
             }
         }
         
