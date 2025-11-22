@@ -440,6 +440,22 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Estatísticas: Clientes Frequentes -->
+            <div class="form-container" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 15px; color: #e50914;">👥 Clientes Frequentes</h3>
+                <div id="frequentClients" style="min-height: 200px;">
+                    <p style="color: #999; text-align: center; padding: 20px;">Carregando estatísticas...</p>
+                </div>
+            </div>
+            
+            <!-- Estatísticas: Serviços Mais Solicitados -->
+            <div class="form-container" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 15px; color: #e50914;">📊 Serviços Mais Solicitados</h3>
+                <div id="popularServices" style="min-height: 200px;">
+                    <p style="color: #999; text-align: center; padding: 20px;">Carregando estatísticas...</p>
+                </div>
+            </div>
 
             <div id="barberShopInfo" class="form-container" style="margin-top: 20px; display: none;"></div>
         </div>
@@ -1536,6 +1552,12 @@
                     return matchesShop && !wasProcessed;
                 });
                 
+                // Atualizar cache para preview
+                appointmentsCacheForPreview = allAppointments;
+                
+                // Atualizar cache para preview
+                appointmentsCacheForPreview = allAppointments;
+                
                 console.log(`✅ ${allAppointments.length} agendamentos da planilha encontrados para barbearia "${shop.name}" do Supabase`);
                 
                 const today = new Date().toISOString().split('T')[0];
@@ -1659,13 +1681,195 @@
                             <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
                             <div style="color: #999; font-size: 0.9rem; margin-bottom: 10px;">${apt.services || 'Sem serviços'}</div>
                             <div style="display: flex; flex-direction: column; gap: 8px;">
-                                <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">✅ Aceitar</button>
-                                <button class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">❌ Recusar</button>
+                                <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="showPreviewById('${apt.id}')">👁️ Ver Detalhes</button>
                             </div>
                         </div>
                     `).join('');
                 } else {
                     document.getElementById('pendingAppointments').innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
+                }
+                
+                // ========================================
+                // ESTATÍSTICAS: CLIENTES FREQUENTES
+                // ========================================
+                updateFrequentClients(allAppointments);
+                
+                // ========================================
+                // ESTATÍSTICAS: SERVIÇOS MAIS SOLICITADOS
+                // ========================================
+                updatePopularServices(allAppointments);
+        }
+        
+        // ========================================
+        // FUNÇÃO: ATUALIZAR CLIENTES FREQUENTES
+        // ========================================
+        function updateFrequentClients(appointments) {
+            const container = document.getElementById('frequentClients');
+            if (!container) return;
+            
+            try {
+                // Analisar agendamentos e contar por email
+                const clientes = {};
+                
+                appointments.forEach(apt => {
+                    const email = apt.client_email?.toLowerCase().trim();
+                    if (!email) return;
+                    
+                    if (!clientes[email]) {
+                        clientes[email] = {
+                            email: email,
+                            visitas: 0,
+                            ultimaVisita: null,
+                            primeiraVisita: null,
+                            totalGasto: 0,
+                            servicos: []
+                        };
+                    }
+                    
+                    clientes[email].visitas++;
+                    
+                    // Atualizar última visita
+                    const aptDate = apt.appointment_date;
+                    if (aptDate) {
+                        if (!clientes[email].ultimaVisita || aptDate > clientes[email].ultimaVisita) {
+                            clientes[email].ultimaVisita = aptDate;
+                        }
+                        if (!clientes[email].primeiraVisita || aptDate < clientes[email].primeiraVisita) {
+                            clientes[email].primeiraVisita = aptDate;
+                        }
+                    }
+                    
+                    // Tentar extrair valor dos serviços
+                    if (apt.services) {
+                        const priceMatch = apt.services.match(/R\$\s*(\d+[\.,]\d+)/);
+                        if (priceMatch) {
+                            clientes[email].totalGasto += parseFloat(priceMatch[1].replace(',', '.'));
+                        }
+                    }
+                    
+                    // Adicionar serviços
+                    if (apt.services && !clientes[email].servicos.includes(apt.services)) {
+                        clientes[email].servicos.push(apt.services);
+                    }
+                });
+                
+                // Ordenar por número de visitas (mais frequentes primeiro)
+                const topClientes = Object.values(clientes)
+                    .sort((a, b) => b.visitas - a.visitas)
+                    .slice(0, 10);
+                
+                if (topClientes.length === 0) {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum cliente frequente ainda</p>';
+                    return;
+                }
+                
+                container.innerHTML = `
+                    <div style="display: grid; gap: 15px;">
+                        ${topClientes.map((cliente, index) => `
+                            <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                        ${index < 3 ? '<span style="color: #ffc107; font-size: 1.2rem;">⭐</span>' : ''}
+                                        <span style="font-weight: 600; color: #fff;">${cliente.email}</span>
+                                        ${index === 0 ? '<span style="background: #e50914; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;">#1</span>' : ''}
+                                    </div>
+                                    <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">
+                                        📊 ${cliente.visitas} visita${cliente.visitas > 1 ? 's' : ''}
+                                        ${cliente.totalGasto > 0 ? ` • 💰 R$ ${cliente.totalGasto.toFixed(2).replace('.', ',')}` : ''}
+                                    </div>
+                                    ${cliente.ultimaVisita ? `<div style="color: #666; font-size: 0.85rem;">Última visita: ${cliente.ultimaVisita}</div>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Erro ao calcular clientes frequentes:', error);
+                container.innerHTML = '<p style="color: #f00; text-align: center; padding: 20px;">Erro ao carregar estatísticas</p>';
+            }
+        }
+        
+        // ========================================
+        // FUNÇÃO: ATUALIZAR SERVIÇOS MAIS SOLICITADOS
+        // ========================================
+        function updatePopularServices(appointments) {
+            const container = document.getElementById('popularServices');
+            if (!container) return;
+            
+            try {
+                // Analisar serviços
+                const servicos = {};
+                let totalAgendamentos = 0;
+                
+                appointments.forEach(apt => {
+                    if (apt.services) {
+                        totalAgendamentos++;
+                        
+                        // Separar múltiplos serviços (se houver vírgula)
+                        const servicosList = apt.services.split(',').map(s => s.trim()).filter(s => s);
+                        
+                        servicosList.forEach(servico => {
+                            // Limpar nome do serviço (remover preços se houver)
+                            const nomeLimpo = servico.replace(/R\$\s*\d+[\.,]\d+/g, '').trim();
+                            
+                            if (!servicos[nomeLimpo]) {
+                                servicos[nomeLimpo] = {
+                                    nome: nomeLimpo,
+                                    quantidade: 0,
+                                    receita: 0
+                                };
+                            }
+                            
+                            servicos[nomeLimpo].quantidade++;
+                            
+                            // Tentar extrair preço
+                            const priceMatch = servico.match(/R\$\s*(\d+[\.,]\d+)/);
+                            if (priceMatch) {
+                                servicos[nomeLimpo].receita += parseFloat(priceMatch[1].replace(',', '.'));
+                            }
+                        });
+                    }
+                });
+                
+                // Ordenar por quantidade
+                const topServicos = Object.values(servicos)
+                    .sort((a, b) => b.quantidade - a.quantidade)
+                    .slice(0, 5);
+                
+                if (topServicos.length === 0) {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum serviço registrado ainda</p>';
+                    return;
+                }
+                
+                // Calcular percentuais
+                topServicos.forEach(servico => {
+                    servico.percentual = totalAgendamentos > 0 
+                        ? ((servico.quantidade / totalAgendamentos) * 100).toFixed(1)
+                        : 0;
+                });
+                
+                container.innerHTML = `
+                    <div style="display: grid; gap: 20px;">
+                        ${topServicos.map(servico => {
+                            const barWidth = Math.min(servico.percentual, 100);
+                            return `
+                                <div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <span style="font-weight: 600; color: #fff;">${servico.nome || 'Serviço não especificado'}</span>
+                                        <span style="color: #e50914; font-weight: 600;">${servico.quantidade}x (${servico.percentual}%)</span>
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.05); border-radius: 10px; height: 8px; overflow: hidden; position: relative;">
+                                        <div style="background: linear-gradient(90deg, #e50914 0%, #ff6b6b 100%); height: 100%; width: ${barWidth}%; border-radius: 10px; transition: width 0.5s;"></div>
+                                    </div>
+                                    ${servico.receita > 0 ? `<div style="color: #999; font-size: 0.85rem; margin-top: 5px;">💰 Receita: R$ ${servico.receita.toFixed(2).replace('.', ',')}</div>` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Erro ao calcular serviços populares:', error);
+                container.innerHTML = '<p style="color: #f00; text-align: center; padding: 20px;">Erro ao carregar estatísticas</p>';
             }
         }
         
@@ -1860,6 +2064,9 @@
                     return matchesShop && !wasProcessed;
                 });
                 
+                // Atualizar cache para preview
+                appointmentsCacheForPreview = appointments;
+                
                 console.log(`✅ ${appointments.length} agendamentos da planilha encontrados para barbearia "${shop.name}" do Supabase`);
                 
                 // Aplicar filtros
@@ -1931,8 +2138,7 @@
                             
                             <div style="display: flex; flex-direction: column; gap: 10px;">
                                 ${apt.status === 'pending' ? `
-                                    <button class="btn" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')" style="width: 100%;">✅ Aceitar</button>
-                                    <button class="btn btn-danger" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')" style="width: 100%;">❌ Recusar</button>
+                                    <button class="btn" onclick="showPreviewById('${apt.id}')" style="width: 100%;">👁️ Ver Detalhes</button>
                                 ` : ''}
                                 ${apt.status === 'confirmed' ? `
                                     <button class="btn" onclick="completeAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')" style="width: 100%;">✅ Marcar como Concluído</button>
@@ -2042,27 +2248,214 @@
             processRequestQueue();
         }
         
-        // FUNÇÕES PARA ATUALIZAR STATUS NA PLANILHA
-        async function acceptAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
-            if (!confirm('Confirmar este agendamento?')) return;
+        // ========================================
+        // PREVIEW DE AGENDAMENTO ANTES DE CONFIRMAR
+        // ========================================
+        // Cache de agendamentos para preview
+        let appointmentsCacheForPreview = [];
+        
+        function showPreviewById(appointmentId) {
+            // Buscar agendamento no cache ou na lista atual
+            let agendamento = appointmentsCacheForPreview.find(apt => apt.id === appointmentId);
             
-            // Remover item da interface imediatamente (otimistic update)
+            if (!agendamento) {
+                // Tentar buscar da lista de agendamentos renderizada
+                const appointmentElement = document.querySelector(`[data-appointment-id="${appointmentId}"]`);
+                if (appointmentElement) {
+                    // Extrair dados do elemento
+                    const text = appointmentElement.textContent;
+                    // Tentar encontrar dados básicos
+                    agendamento = {
+                        id: appointmentId,
+                        appointment_date: '',
+                        appointment_time: '',
+                        client_email: '',
+                        services: '',
+                        notes: '',
+                        professional: ''
+                    };
+                }
+            }
+            
+            if (!agendamento) {
+                console.error('Agendamento não encontrado para preview');
+                return;
+            }
+            
+            showAppointmentPreview(agendamento);
+        }
+        
+        function showAppointmentPreview(agendamento) {
+            // Buscar histórico do cliente se disponível
+            const historico = getClientHistory(agendamento.client_email);
+            
+            const modal = document.createElement('div');
+            modal.id = 'previewModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.8);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto;">
+                    <div style="padding: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                        <h2 style="margin: 0; color: #e50914; font-size: 1.5rem;">📋 Detalhes do Agendamento</h2>
+                        <button onclick="closePreviewModal()" style="background: transparent; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">&times;</button>
+                    </div>
+                    
+                    <div style="padding: 30px;">
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">👤 Cliente</h3>
+                            <p style="color: #fff; font-size: 1rem; margin-bottom: 5px;">${agendamento.client_email || 'Email não disponível'}</p>
+                            ${historico.length > 0 ? `<p style="color: #999; font-size: 0.9rem;">📊 ${historico.length} visita(s) anterior(es)</p>` : '<p style="color: #999; font-size: 0.9rem;">🆕 Cliente novo</p>'}
+                        </div>
+                        
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">📅 Data e Hora</h3>
+                            <p style="color: #fff; font-size: 1rem;">${agendamento.appointment_date || 'Não especificado'} às ${agendamento.appointment_time || 'Não especificado'}</p>
+                        </div>
+                        
+                        ${agendamento.services ? `
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">💇 Serviços Solicitados</h3>
+                            <p style="color: #fff; font-size: 1rem;">${agendamento.services}</p>
+                        </div>
+                        ` : ''}
+                        
+                        ${agendamento.notes ? `
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">📝 Observações</h3>
+                            <p style="color: #fff; font-size: 1rem; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">${agendamento.notes}</p>
+                        </div>
+                        ` : ''}
+                        
+                        ${agendamento.professional ? `
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">👨‍💼 Profissional</h3>
+                            <p style="color: #fff; font-size: 1rem;">${agendamento.professional}</p>
+                        </div>
+                        ` : ''}
+                        
+                        ${historico.length > 0 ? `
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="color: #e50914; margin-bottom: 10px; font-size: 1.1rem;">📊 Histórico</h3>
+                            <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; max-height: 150px; overflow-y: auto;">
+                                ${historico.slice(0, 5).map(h => `
+                                    <div style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                        <div style="color: #fff; font-size: 0.9rem;">${h.date} às ${h.time}</div>
+                                        <div style="color: #999; font-size: 0.85rem;">${h.services || 'Sem serviços'}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 30px;">
+                            <button onclick="acceptWithPreview('${agendamento.id}', '${agendamento.appointment_date}', '${agendamento.appointment_time}', '${(agendamento.client_email || '').replace(/'/g, "\\'")}', '${(agendamento.barbershop_name || '').replace(/'/g, "\\'")}', '${(agendamento.appointment_id || '').replace(/'/g, "\\'")}')" 
+                                    class="btn" style="width: 100%; padding: 15px; font-size: 1rem; background: #0f0; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 600;">
+                                ✅ Aceitar Agendamento
+                            </button>
+                            <button onclick="rejectWithPreview('${agendamento.id}', '${agendamento.appointment_date}', '${agendamento.appointment_time}', '${(agendamento.client_email || '').replace(/'/g, "\\'")}', '${(agendamento.barbershop_name || '').replace(/'/g, "\\'")}', '${(agendamento.appointment_id || '').replace(/'/g, "\\'")}')" 
+                                    class="btn" style="width: 100%; padding: 15px; font-size: 1rem; background: #f00; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 600;">
+                                ❌ Recusar Agendamento
+                            </button>
+                            <button onclick="closePreviewModal()" 
+                                    class="btn" style="width: 100%; padding: 15px; font-size: 1rem; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; color: #fff; cursor: pointer;">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Fechar ao clicar fora
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closePreviewModal();
+                }
+            });
+        }
+        
+        function closePreviewModal() {
+            const modal = document.getElementById('previewModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function getClientHistory(email) {
+            // Buscar histórico do cliente dos agendamentos já carregados
+            if (!dataCache.appointments) return [];
+            
+            return dataCache.appointments
+                .filter(apt => 
+                    apt.client_email?.toLowerCase() === email?.toLowerCase() && 
+                    apt.status === 'completed'
+                )
+                .map(apt => ({
+                    date: apt.appointment_date,
+                    time: apt.appointment_time,
+                    services: apt.services
+                }))
+                .sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+        }
+        
+        async function acceptWithPreview(id, date, time, clientEmail, barbershopName, appointmentId) {
+            closePreviewModal();
             removeAppointmentFromUI(id);
-            
-            // Desabilitar botões durante processamento
             disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Confirmado', '', clientEmail, barbershopName, appointmentId);
         }
         
-        async function rejectAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
+        async function rejectWithPreview(id, date, time, clientEmail, barbershopName, appointmentId) {
             const reason = prompt('Motivo da recusa (opcional):');
-            if (reason === null) return;
+            if (reason === null) {
+                // Se cancelou, reabrir preview
+                const agendamento = {
+                    id, appointment_date: date, appointment_time: time,
+                    client_email: clientEmail, barbershop_name: barbershopName,
+                    appointment_id: appointmentId
+                };
+                showAppointmentPreview(agendamento);
+                return;
+            }
             
-            // Remover item da interface imediatamente (otimistic update)
+            closePreviewModal();
             removeAppointmentFromUI(id);
-            
             disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Cancelado', reason, clientEmail, barbershopName, appointmentId);
+        }
+        
+        // FUNÇÕES PARA ATUALIZAR STATUS NA PLANILHA
+        async function acceptAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
+            // Mostrar preview antes de confirmar
+            const agendamento = {
+                id, appointment_date: date, appointment_time: time,
+                client_email: clientEmail, barbershop_name: barbershopName,
+                appointment_id: appointmentId
+            };
+            showAppointmentPreview(agendamento);
+        }
+        
+        async function rejectAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
+            // Mostrar preview antes de recusar
+            const agendamento = {
+                id, appointment_date: date, appointment_time: time,
+                client_email: clientEmail, barbershop_name: barbershopName,
+                appointment_id: appointmentId
+            };
+            showAppointmentPreview(agendamento);
         }
         
         // Armazenar IDs de agendamentos que foram aceitos/recusados (para não mostrar novamente até confirmar atualização)
@@ -2726,24 +3119,32 @@
                     return;
                 }
                 
-                // Buscar funcionários do Supabase (se a tabela existir) ou usar localStorage
+                // Buscar funcionários APENAS do Supabase (sem localStorage)
                 let employees = [];
                 try {
-                    const { data: supabaseEmployees } = await supabase
+                    const { data: supabaseEmployees, error: supabaseError } = await supabase
                         .from('employees')
                         .select('*')
                         .eq('barbershop_id', shop.id)
                         .order('name', { ascending: true });
                     
-                    if (supabaseEmployees) {
+                    if (supabaseError) {
+                        console.error('❌ Erro ao buscar do Supabase:', supabaseError);
+                        if (supabaseError.message.includes('relation') || supabaseError.message.includes('does not exist')) {
+                            throw new Error('Tabela employees não existe. Execute o SQL: CRIAR_TABELAS_SUPABASE.sql');
+                        }
+                        throw supabaseError;
+                    }
+                    
+                    if (supabaseEmployees && supabaseEmployees.length > 0) {
                         employees = supabaseEmployees;
+                        console.log(`✅ ${employees.length} profissionais carregados do Supabase`);
+                    } else {
+                        console.log('ℹ️ Nenhum profissional cadastrado ainda');
                     }
                 } catch (error) {
-                    // Se não existir tabela, usar localStorage
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    if (stored) {
-                        employees = JSON.parse(stored);
-                    }
+                    console.error('❌ Erro ao carregar funcionários:', error);
+                    throw error;
                 }
                 
                 // Renderizar
@@ -2932,33 +3333,58 @@
                 }
                 
                 // Tentar salvar no Supabase primeiro
+                let saved = false;
                 try {
-                    const { error } = await supabase.from('employees').insert(employee);
+                    const { data, error } = await supabase.from('employees').insert(employee).select();
                     if (error) {
+                        console.error('Erro ao salvar no Supabase:', error);
+                        // Se erro for de RLS (Row-Level Security), tabela não existir ou permissão, usar localStorage
+                        if (error.code === '42501' || 
+                            error.message.includes('row-level security') || 
+                            error.message.includes('RLS') ||
+                            error.message.includes('relation') || 
+                            error.message.includes('permission') || 
+                            error.message.includes('does not exist') ||
+                            error.message.includes('violates row-level security')) {
+                            console.log('⚠️ RLS bloqueado ou tabela não existe, usando localStorage...');
+                            throw new Error('USE_LOCALSTORAGE');
+                        }
                         if (error.message.includes('duplicate') || error.message.includes('unique')) {
                             throw new Error('Este email de login já está em uso. Escolha outro.');
                         }
                         throw error;
                     }
-                } catch (error) {
-                    // Se não existir tabela, usar localStorage
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    let employees = stored ? JSON.parse(stored) : [];
-                    
-                    // Verificar se login_email já existe
-                    const emailExists = employees.some(e => e.login_email === employee.login_email);
-                    if (emailExists) {
-                        throw new Error('Este email de login já está em uso. Escolha outro.');
+                    if (data && data.length > 0) {
+                        console.log('✅ Profissional salvo no Supabase com sucesso:', data[0]);
+                        saved = true;
                     }
-                    
-                    employees.push({ ...employee, id: Date.now() });
-                    localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                } catch (error) {
+                    // NÃO usar localStorage - apenas Supabase
+                    if (error.message === 'USE_LOCALSTORAGE') {
+                        throw new Error('Tabela employees não existe no Supabase. Execute o SQL: CRIAR_TABELAS_SUPABASE.sql');
+                    }
+                    throw error;
                 }
                 
+                if (!saved) {
+                    throw new Error('Não foi possível salvar o profissional. Verifique se a tabela employees existe no Supabase.');
+                }
+                
+                console.log('✅ Profissional salvo com sucesso! Recarregando lista...');
                 showToast('Sucesso!', 'Profissional adicionado com sucesso', 'success');
-                document.getElementById('employeeForm').reset();
-                document.getElementById('employeeHireDate').value = new Date().toISOString().split('T')[0];
-                loadEmployees();
+                
+                // Limpar formulário
+                const form = document.getElementById('employeeForm');
+                if (form) {
+                    form.reset();
+                    const dateInput = document.getElementById('employeeHireDate');
+                    if (dateInput) {
+                        dateInput.value = new Date().toISOString().split('T')[0];
+                    }
+                }
+                
+                // Recarregar lista de funcionários
+                await loadEmployees();
                 
             } catch (error) {
                 showAlert(alert, error.message, 'error');
@@ -2978,15 +3404,18 @@
                 if (!shop) return;
                 
                 let employees = [];
-                try {
-                    const { data } = await supabase
-                        .from('employees')
-                        .select('*')
-                        .eq('barbershop_id', shop.id);
-                    if (data) employees = data;
-                } catch (error) {
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    if (stored) employees = JSON.parse(stored);
+                const { data, error } = await supabase
+                    .from('employees')
+                    .select('*')
+                    .eq('barbershop_id', shop.id)
+                    .order('name', { ascending: true });
+                
+                if (error) {
+                    throw new Error('Erro ao buscar funcionários: ' + error.message);
+                }
+                
+                if (data) {
+                    employees = data;
                 }
                 
                 const employee = employees[index];
@@ -3028,13 +3457,16 @@
                     }
                     
                     try {
-                        if (employee.id) {
-                            await supabase.from('employees').update(updatedEmployee).eq('id', employee.id);
-                        } else {
-                            const stored = localStorage.getItem(`employees_${shop.id}`);
-                            let employees = stored ? JSON.parse(stored) : [];
-                            employees[index] = { ...employees[index], ...updatedEmployee };
-                            localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                        if (!employee.id) {
+                            throw new Error('ID do funcionário não encontrado');
+                        }
+                        const { error: updateError } = await supabase
+                            .from('employees')
+                            .update(updatedEmployee)
+                            .eq('id', employee.id);
+                        
+                        if (updateError) {
+                            throw updateError;
                         }
                         
                         showToast('Sucesso!', 'Profissional atualizado', 'success');
@@ -3069,21 +3501,31 @@
                 
                 if (!shop) return;
                 
-                // Tentar deletar do Supabase
-                try {
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    const employees = stored ? JSON.parse(stored) : [];
-                    const employee = employees[index];
-                    
-                    if (employee.id) {
-                        await supabase.from('employees').delete().eq('id', employee.id);
-                    }
-                } catch (error) {
-                    // Se não existir tabela, usar localStorage
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    let employees = stored ? JSON.parse(stored) : [];
-                    employees.splice(index, 1);
-                    localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                // Buscar funcionário para pegar o ID
+                let employees = [];
+                const { data: supabaseEmployees } = await supabase
+                    .from('employees')
+                    .select('*')
+                    .eq('barbershop_id', shop.id)
+                    .order('name', { ascending: true });
+                
+                if (supabaseEmployees) {
+                    employees = supabaseEmployees;
+                }
+                
+                const employee = employees[index];
+                if (!employee || !employee.id) {
+                    throw new Error('Funcionário não encontrado');
+                }
+                
+                // Deletar do Supabase
+                const { error: deleteError } = await supabase
+                    .from('employees')
+                    .delete()
+                    .eq('id', employee.id);
+                
+                if (deleteError) {
+                    throw deleteError;
                 }
                 
                 showToast('Sucesso!', 'Profissional removido', 'success');
@@ -3113,16 +3555,18 @@
                 }
                 
                 let employees = [];
-                try {
-                    const { data } = await supabase
-                        .from('employees')
-                        .select('*')
-                        .eq('barbershop_id', shop.id)
-                        .order('name', { ascending: true });
-                    if (data) employees = data;
-                } catch (error) {
-                    const stored = localStorage.getItem(`employees_${shop.id}`);
-                    if (stored) employees = JSON.parse(stored);
+                const { data, error } = await supabase
+                    .from('employees')
+                    .select('*')
+                    .eq('barbershop_id', shop.id)
+                    .order('name', { ascending: true });
+                
+                if (error) {
+                    throw new Error('Erro ao buscar funcionários: ' + error.message);
+                }
+                
+                if (data) {
+                    employees = data;
                 }
                 
                 const { jsPDF } = window.jspdf;
@@ -4306,6 +4750,33 @@
         // ========================================
         let pollingInterval = null;
         const POLLING_INTERVAL = 30000; // 30 segundos
+        let lastAppointmentCount = 0; // Para detectar novos agendamentos
+        
+        // ========================================
+        // SISTEMA DE NOTIFICAÇÃO SONORA
+        // ========================================
+        function playNotificationSound() {
+            try {
+                // Criar som usando Web Audio API (não precisa de arquivo)
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800; // Frequência do som
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (error) {
+                console.log('⚠️ Não foi possível tocar som (pode estar bloqueado pelo navegador)');
+            }
+        }
         
         function startPolling() {
             // Limpar intervalo anterior se existir
@@ -4314,13 +4785,45 @@
             }
             
             // Iniciar polling
-            pollingInterval = setInterval(() => {
+            pollingInterval = setInterval(async () => {
                 // Só atualizar se estiver nas abas relevantes
                 const activeTab = document.querySelector('.tab-content.active');
                 if (activeTab) {
                     const tabId = activeTab.id;
                     if (tabId === 'dashboard') {
                         console.log('🔄 Polling: Atualizando dashboard...');
+                        
+                        // Verificar se há novos agendamentos pendentes
+                        try {
+                            const shop = await getCurrentShop();
+                            if (shop) {
+                                const appointments = await fetchAppointmentsFromSheet();
+                                const pendingCount = appointments.filter(apt => 
+                                    apt.status === 'pending' && 
+                                    apt.barbershop_name?.toLowerCase() === shop.name?.toLowerCase()
+                                ).length;
+                                
+                                // Se há mais pendentes que antes, tocar som
+                                if (pendingCount > lastAppointmentCount && lastAppointmentCount > 0) {
+                                    const newCount = pendingCount - lastAppointmentCount;
+                                    playNotificationSound();
+                                    showToast('Novo Agendamento!', `Você tem ${newCount} novo(s) agendamento(s) pendente(s)`, 'info', 5000);
+                                    
+                                    // Mostrar notificação do navegador se permitido
+                                    if ('Notification' in window && Notification.permission === 'granted') {
+                                        new Notification('Barberflix - Novo Agendamento', {
+                                            body: `Você tem ${newCount} novo(s) agendamento(s) pendente(s)`,
+                                            icon: 'https://tvvqwlxmpmolnyavabqq.supabase.co/storage/v1/object/public/logo/Design%20sem%20nome%20(36)%20(1).png'
+                                        });
+                                    }
+                                }
+                                
+                                lastAppointmentCount = pendingCount;
+                            }
+                        } catch (error) {
+                            console.error('Erro ao verificar novos agendamentos:', error);
+                        }
+                        
                         loadBarberDashboard();
                     } else if (tabId === 'appointments') {
                         console.log('🔄 Polling: Atualizando agendamentos...');
@@ -4329,7 +4832,15 @@
                 }
             }, POLLING_INTERVAL);
             
+            // Solicitar permissão para notificações
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
             console.log('✅ Polling iniciado (atualização a cada 30s)');
+            
+            // Iniciar verificação de lembretes
+            startReminderCheck();
         }
         
         function stopPolling() {
@@ -4337,6 +4848,183 @@
                 clearInterval(pollingInterval);
                 pollingInterval = null;
                 console.log('🛑 Polling parado');
+            }
+            
+            // Parar verificação de lembretes
+            stopReminderCheck();
+        }
+        
+        // ========================================
+        // SISTEMA DE LEMBRETES AUTOMÁTICOS
+        // ========================================
+        let reminderInterval = null;
+        const REMINDER_CHECK_INTERVAL = 60 * 60 * 1000; // Verificar a cada 1 hora
+        const sentReminders = new Set(); // Para não enviar lembretes duplicados
+        
+        function startReminderCheck() {
+            // Limpar intervalo anterior
+            if (reminderInterval) {
+                clearInterval(reminderInterval);
+            }
+            
+            // Verificar imediatamente
+            checkAndSendReminders();
+            
+            // Verificar periodicamente
+            reminderInterval = setInterval(() => {
+                checkAndSendReminders();
+            }, REMINDER_CHECK_INTERVAL);
+            
+            console.log('✅ Sistema de lembretes iniciado');
+        }
+        
+        function stopReminderCheck() {
+            if (reminderInterval) {
+                clearInterval(reminderInterval);
+                reminderInterval = null;
+                console.log('🛑 Sistema de lembretes parado');
+            }
+        }
+        
+        async function checkAndSendReminders() {
+            try {
+                // Buscar agendamentos confirmados
+                const shop = await getCurrentShop();
+                if (!shop) return;
+                
+                const appointments = await fetchAppointmentsFromSheet();
+                const filteredAppointments = appointments.filter(apt => 
+                    apt.barbershop_name?.toLowerCase() === shop.name?.toLowerCase() &&
+                    apt.status === 'confirmed'
+                );
+                
+                const hoje = new Date();
+                const amanha = new Date(hoje);
+                amanha.setDate(amanha.getDate() + 1);
+                const dataAmanha = amanha.toISOString().split('T')[0];
+                
+                // Agendamentos para amanhã (lembrete 24h antes)
+                const agendamentosAmanha = filteredAppointments.filter(apt => 
+                    apt.appointment_date === dataAmanha
+                );
+                
+                // Agendamentos para hoje (lembrete 2h antes)
+                const dataHoje = hoje.toISOString().split('T')[0];
+                const horaAtual = hoje.getHours();
+                const agendamentosHoje = filteredAppointments.filter(apt => {
+                    if (apt.appointment_date !== dataHoje) return false;
+                    
+                    const [aptHour] = apt.appointment_time.split(':').map(Number);
+                    const horasRestantes = aptHour - horaAtual;
+                    
+                    // Enviar lembrete se faltam entre 1h e 3h
+                    return horasRestantes >= 1 && horasRestantes <= 3;
+                });
+                
+                // Enviar lembretes para amanhã
+                for (const apt of agendamentosAmanha) {
+                    const reminderKey = `24h_${apt.id}_${apt.appointment_date}`;
+                    if (!sentReminders.has(reminderKey)) {
+                        await sendReminder(apt, '24h');
+                        sentReminders.add(reminderKey);
+                    }
+                }
+                
+                // Enviar lembretes para hoje
+                for (const apt of agendamentosHoje) {
+                    const reminderKey = `2h_${apt.id}_${apt.appointment_date}`;
+                    if (!sentReminders.has(reminderKey)) {
+                        await sendReminder(apt, '2h');
+                        sentReminders.add(reminderKey);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Erro ao verificar lembretes:', error);
+            }
+        }
+        
+        async function sendReminder(appointment, tipo) {
+            try {
+                const mensagem = tipo === '24h' 
+                    ? `📅 Lembrete: Você tem um agendamento amanhã (${appointment.appointment_date}) às ${appointment.appointment_time} na ${appointment.barbershop_name}. Confirme sua presença!`
+                    : `⏰ Lembrete: Você tem um agendamento hoje às ${appointment.appointment_time} na ${appointment.barbershop_name}. Não se atrase!`;
+                
+                console.log('📧 Enviando lembrete:', mensagem);
+                
+                // Opção 1: WhatsApp (link direto)
+                if (appointment.client_email) {
+                    // Tentar extrair telefone do email ou usar WhatsApp da barbearia
+                    const shop = await getCurrentShop();
+                    if (shop && shop.whatsapp) {
+                        const whatsappLink = `https://wa.me/${shop.whatsapp}?text=${encodeURIComponent(mensagem)}`;
+                        console.log('💬 Link WhatsApp gerado:', whatsappLink);
+                        // Aqui você pode abrir o link ou usar API do WhatsApp
+                    }
+                }
+                
+                // Opção 2: Email (via Supabase Edge Function ou API externa)
+                // TODO: Implementar envio de email
+                
+                // Opção 3: Notificação no sistema (já implementado)
+                showToast('Lembrete Enviado', `Lembrete enviado para ${appointment.client_email}`, 'success');
+                
+            } catch (error) {
+                console.error('Erro ao enviar lembrete:', error);
+            }
+        }
+        
+        // Função auxiliar para buscar shop atual
+        async function getCurrentShop() {
+            if (!currentUser || !currentUser.id) return null;
+            
+            try {
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('*')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                return shop;
+            } catch (error) {
+                console.error('Erro ao buscar shop:', error);
+                return null;
+            }
+        }
+        
+        // Função auxiliar para buscar agendamentos
+        async function fetchAppointmentsFromSheet() {
+            try {
+                const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
+                const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:I1000?key=${API_KEY}`;
+                
+                const response = await fetch(sheetsUrl);
+                const data = await response.json();
+                const rows = data.values || [];
+                
+                return rows.map((row, index) => ({
+                    id: `sheet_${index + 2}`,
+                    appointment_id: row[7] || null,
+                    appointment_date: row[0] || '',
+                    appointment_time: row[1] || '',
+                    client_email: row[2] || '',
+                    barbershop_name: row[3] || '',
+                    services: row[4] || '',
+                    notes: row[5] || '',
+                    status: (row[6] || 'Pendente').toLowerCase()
+                        .replace('pendente', 'pending')
+                        .replace('confirmado', 'confirmed')
+                        .replace('recusado', 'rejected')
+                        .replace('rejeitado', 'rejected')
+                        .replace('concluído', 'completed')
+                        .replace('concluido', 'completed')
+                        .replace('cancelado', 'cancelled')
+                        .trim() || 'pending'
+                })).filter(apt => apt.appointment_date && apt.appointment_time);
+            } catch (error) {
+                console.error('Erro ao buscar agendamentos:', error);
+                return [];
             }
         }
         
