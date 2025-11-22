@@ -2,9 +2,14 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Painel Barbeiro - Barberflix</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #fff; overflow-x: hidden; }
@@ -26,6 +31,7 @@
         /* Header Superior */
         .header { background: #161b22; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; width: 100%; box-sizing: border-box; }
         .header-title { font-size: 18px; font-weight: 600; color: #fff; margin: 0; }
+        .mobile-menu-btn { display: none; background: transparent; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 8px; margin-right: 15px; }
         .header-user { display: flex; align-items: center; gap: 15px; }
         .header-user-info { display: flex; flex-direction: column; align-items: flex-end; }
         .header-user-name { font-size: 14px; color: #fff; font-weight: 500; margin: 0; }
@@ -191,33 +197,113 @@
         .stat-card:hover { border-color: rgba(229, 9, 20, 0.3); transform: translateY(-2px); }
         .stat-value { font-size: 2rem; font-weight: bold; color: #e50914; margin-bottom: 5px; }
         .stat-label { color: #8b949e; font-size: 0.9rem; }
+        /* Menu Mobile Hambúrguer */
+        .mobile-menu-btn { display: none; }
+        .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 999; }
+        
+        @media (max-width: 1024px) {
+            .header-user-info { display: none; }
+            .header-user-email { display: none; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .form-row { grid-template-columns: 1fr; }
+        }
+        
         @media (max-width: 768px) { 
-            .sidebar { width: 70px; }
+            .mobile-menu-btn { display: block; }
+            .sidebar { 
+                transform: translateX(-100%); 
+                transition: transform 0.3s ease;
+                width: 280px;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay.active { display: block; }
             .sidebar-logo-text { display: none; }
-            .sidebar-nav-item-text { display: none; }
-            .header { margin-left: 70px; padding: 15px 20px; }
-            .content-area { margin-left: 70px; }
+            .header { margin-left: 0; padding: 12px 20px; }
+            .content-area { margin-left: 0; }
             .form-row { grid-template-columns: 1fr; } 
             .container { padding: 20px 15px; }
             .form-container { padding: 20px; }
             .stats-grid { grid-template-columns: 1fr; }
-            .table { font-size: 0.85rem; }
-            .table th, .table td { padding: 8px; }
+            .table { font-size: 0.85rem; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .table thead, .table tbody, .table tr { display: block; }
+            .table th, .table td { 
+                padding: 10px 8px; 
+                display: block;
+                text-align: left;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+            }
+            .table th { border-bottom: 2px solid rgba(255,255,255,0.2); }
             h2 { font-size: 1.5rem; }
-            #loginContainer > div { padding: 30px 20px; width: 95%; }
+            #loginContainer > div { padding: 30px 20px; width: 95%; max-width: 100%; }
+            .header-user { gap: 10px; }
+            .header-user-name { font-size: 12px; }
+            .header-logout { padding: 6px 12px; font-size: 12px; }
+            .toast-container { right: 10px; left: 10px; max-width: calc(100% - 20px); }
+            .toast { min-width: auto; max-width: 100%; }
         }
+        
         @media (max-width: 480px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .header { margin-left: 0; padding: 12px 15px; }
+            .sidebar { width: 100%; max-width: 300px; }
+            .header { padding: 10px 15px; }
+            .header-title { font-size: 16px; }
             .content-area { margin-left: 0; }
             .container { padding: 15px 10px; }
             .form-container { padding: 15px; }
-            .form-group input, .form-group textarea { font-size: 16px; padding: 14px; }
-            .btn { padding: 10px 20px; font-size: 14px; }
+            .form-group input, .form-group textarea { 
+                font-size: 16px; 
+                padding: 14px; 
+                -webkit-appearance: none;
+                appearance: none;
+                border-radius: 5px;
+            }
+            .btn { 
+                padding: 12px 20px; 
+                font-size: 14px; 
+                width: 100%;
+                touch-action: manipulation;
+            }
             .table { font-size: 0.8rem; }
-            .table th, .table td { padding: 6px 4px; }
+            .table th, .table td { padding: 8px 6px; }
             #loginContainer > div { padding: 25px 15px; }
+            .sidebar-nav-item { padding: 14px 20px; font-size: 15px; }
+            .stat-card { padding: 15px; }
+            .stat-value { font-size: 1.5rem; }
+            .header-user-avatar { width: 30px; height: 30px; font-size: 12px; }
+            .queue-indicator { font-size: 11px; padding: 4px 8px; }
+        }
+        
+        @media (max-width: 360px) {
+            .container { padding: 10px 8px; }
+            .form-container { padding: 12px; }
+            .header { padding: 8px 12px; }
+            .header-title { font-size: 14px; }
+            .sidebar-nav-item { padding: 12px 15px; font-size: 14px; }
+        }
+        
+        /* Otimizações de Performance */
+        * { 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+        
+        .sidebar, .content-area {
+            will-change: transform;
+        }
+        
+        img {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        
+        /* Melhorias de Touch */
+        button, .btn, .sidebar-nav-item {
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        input, textarea, select {
+            touch-action: manipulation;
         }
     </style>
 </head>
@@ -230,45 +316,49 @@
                      alt="Barberflix Logo">
             </div>
             <nav class="sidebar-nav">
-                <div class="sidebar-nav-item active" onclick="showTab('dashboard')">
+                <div class="sidebar-nav-item active" onclick="showTab('dashboard'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">📊</span>
                     <span class="sidebar-nav-item-text">Dashboard</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('appointments')">
+                <div class="sidebar-nav-item" onclick="showTab('appointments'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">📅</span>
                     <span class="sidebar-nav-item-text">Agendamentos</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('clients')">
+                <div class="sidebar-nav-item" onclick="showTab('clients'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">👥</span>
                     <span class="sidebar-nav-item-text">Clientes</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('services')">
+                <div class="sidebar-nav-item" onclick="showTab('services'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">✂️</span>
                     <span class="sidebar-nav-item-text">Produtos</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('financial')">
+                <div class="sidebar-nav-item" onclick="showTab('financial'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">💰</span>
                     <span class="sidebar-nav-item-text">Financeiro</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('employees')">
+                <div class="sidebar-nav-item" onclick="showTab('employees'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">👨‍💼</span>
                     <span class="sidebar-nav-item-text">Funcionários</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('expenses')">
+                <div class="sidebar-nav-item" onclick="showTab('expenses'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">💸</span>
                     <span class="sidebar-nav-item-text">Despesas</span>
                 </div>
-                <div class="sidebar-nav-item" onclick="showTab('register')">
+                <div class="sidebar-nav-item" onclick="showTab('register'); closeMobileMenuOnClick();">
                     <span class="sidebar-nav-item-icon">🏪</span>
                     <span class="sidebar-nav-item-text">Minha Barbearia</span>
                 </div>
             </nav>
         </div>
 
+        <!-- Overlay para fechar sidebar no mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+        
         <!-- Content Area -->
         <div class="content-area">
             <!-- Header Superior -->
     <header class="header">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
                 <div class="header-title" id="pageTitle">Dashboard</div>
                 <div class="header-user">
                     <div class="queue-indicator" id="queueIndicator">
@@ -385,6 +475,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
+                        <label>Profissional</label>
+                        <select id="filterProfessional" onchange="loadAppointments()" style="width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff; font-size: 16px;">
+                            <option value="all">Todos os Profissionais</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
                         <label>Buscar Cliente</label>
                         <input type="text" id="searchClient" placeholder="Nome ou email..." onkeyup="loadAppointments()" style="width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff; font-size: 16px;">
                     </div>
@@ -450,11 +546,18 @@
         <!-- NOVA ABA: FUNCIONÁRIOS -->
         <div id="employees" class="tab-content">
             <div style="margin-bottom: 30px;">
-                <h2 style="color: #e50914; margin-bottom: 5px;">Funcionários</h2>
-                <p style="color: #999; font-size: 0.9rem;">Gerencie sua equipe</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="color: #e50914; margin-bottom: 5px;">Funcionários / Profissionais</h2>
+                        <p style="color: #999; font-size: 0.9rem;">Gerencie sua equipe de profissionais</p>
+                    </div>
+                    <button class="btn" onclick="exportEmployeesPDF()" style="margin-left: 20px;">
+                        📄 Exportar PDF
+                    </button>
+                </div>
             </div>
             <div id="employeesList" class="form-container">
-                <p style="color: #999; text-align: center; padding: 40px;">Funcionalidade em desenvolvimento...</p>
+                <p style="color: #999; text-align: center; padding: 40px;">Carregando...</p>
             </div>
         </div>
 
@@ -518,6 +621,11 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <label>WhatsApp</label>
+                        <input type="tel" id="shopWhatsapp" placeholder="Ex: 5514999999999 (com DDD e código do país)">
+                        <small style="color: #999; font-size: 0.85rem; margin-top: 5px; display: block;">Formato: código do país + DDD + número (ex: 5514999999999)</small>
+                    </div>
+                    <div class="form-group">
                         <label>Foto de Capa</label>
                         <input type="file" id="coverImage" accept="image/*" onchange="previewImage(this, 'coverPreview')">
                         <img id="coverPreview" style="display: none; max-width: 100%; margin-top: 10px; border-radius: 5px; max-height: 200px;">
@@ -570,9 +678,54 @@
     <script>
         const SUPABASE_URL = 'https://tvvqwlxmpmolnyavabqq.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2dnF3bHhtcG1vbG55YXZhYnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwODg5MjMsImV4cCI6MjA3ODY2NDkyM30.5FW2R9rcYXpAvpAjWnviBRIjeQOVf2pZwWrYrqljdHw';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // ========================================
+        // CONFIGURAÇÃO SUPABASE - FUNCIONA EM QUALQUER PC
+        // ========================================
+        // A sessão é salva no localStorage do navegador, então funciona em qualquer PC
+        // quando o usuário fizer login. Cada PC terá sua própria sessão local.
+        // Se quiser sincronizar entre PCs, seria necessário usar cookies compartilhados
+        // ou um sistema de sincronização mais complexo.
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+                persistSession: true,        // Salva sessão automaticamente
+                autoRefreshToken: true,      // Renova token automaticamente
+                detectSessionInUrl: true     // Detecta sessão na URL (reset de senha)
+            }
+        });
         
         let currentUser = null;
+        
+        // ========================================
+        // FUNÇÃO PARA MENU MOBILE
+        // ========================================
+        function toggleMobileMenu() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (sidebar && overlay) {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('active');
+                
+                // Prevenir scroll do body quando menu estiver aberto
+                if (sidebar.classList.contains('open')) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = '';
+                }
+            }
+        }
+        
+        // Fechar menu ao clicar em um item (mobile)
+        function closeMobileMenuOnClick() {
+            if (window.innerWidth <= 768) {
+                const sidebar = document.querySelector('.sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (sidebar) sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
         
         // ========================================
         // SISTEMA DE CACHE E OTIMIZAÇÕES
@@ -664,75 +817,76 @@
         }
         
         async function checkAuth() {
+            // Verificar se há sessão válida
             try {
-                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                const { data: { session }, error } = await supabase.auth.getSession();
                 
-                if (userError || !user || !user.id) {
-                    console.warn('⚠️ Usuário não autenticado');
+                if (error) {
+                    console.warn('Erro ao verificar sessão:', error);
                     showLoginScreen();
                     return;
                 }
                 
-                console.log('🔍 Verificando permissões para usuário:', user.id);
-                
-                // VERIFICAR SE É BARBEIRO
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('user_type, email, full_name')
-                    .eq('id', user.id)
-                    .maybeSingle();
-                
-                if (profileError || !profile) {
-                    console.warn('⚠️ Perfil não encontrado');
-                    await supabase.auth.signOut();
-                    showLoginScreen();
-                    return;
+                // Se há sessão, verificar se é válida e restaurar
+                if (session && session.user) {
+                    console.log('✅ Sessão encontrada, verificando permissões...');
+                    
+                    // Verificar se é barbeiro
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('user_type, email, full_name')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+                    
+                    if (profile && profile.user_type === 'barber') {
+                        // Verificar se tem barbearia
+                        const { data: shop } = await supabase
+                            .from('barbershops')
+                            .select('id, name')
+                            .eq('barber_id', session.user.id)
+                            .maybeSingle();
+                        
+                        if (shop && shop.id) {
+                            // Restaurar sessão
+                            currentUser = session.user;
+                            window.currentUser = session.user;
+                            
+                            // Atualizar info do usuário no header
+                            if (profile.full_name) {
+                                document.getElementById('userName').textContent = profile.full_name;
+                                document.getElementById('userAvatar').textContent = profile.full_name.charAt(0).toUpperCase();
+                            } else if (session.user.email) {
+                                const emailParts = session.user.email.split('@');
+                                document.getElementById('userName').textContent = emailParts[0] || 'Usuário';
+                                document.getElementById('userEmail').textContent = session.user.email;
+                                document.getElementById('userAvatar').textContent = emailParts[0].charAt(0).toUpperCase() || 'U';
+                            }
+                            
+                            // Mostrar dashboard
+                            hideLoginScreen();
+                            
+                            // Inicializar Realtime subscriptions
+                            initializeRealtimeSubscriptions(shop.id);
+                            
+                            // Iniciar polling para atualização automática
+                            startPolling();
+                            
+                            // Carregar dashboard
+                            setTimeout(() => {
+                                loadBarberDashboard();
+                            }, 500);
+                            
+                            console.log('✅ Sessão restaurada com sucesso');
+                            return;
+                        }
+                    }
                 }
                 
-                if (profile.user_type !== 'barber') {
-                    console.warn('⚠️ Usuário não é barbeiro. Tipo:', profile.user_type);
-                    await supabase.auth.signOut();
-                    showLoginScreen();
-                    return;
-                }
-                
-                // VERIFICAR SE TEM BARBEARIA CADASTRADA
-                const { data: shop, error: shopError } = await supabase
-                    .from('barbershops')
-                    .select('id, name')
-                    .eq('barber_id', user.id)
-                    .maybeSingle();
-                
-                if (shopError || !shop || !shop.id) {
-                    console.warn('⚠️ Barbearia não encontrada para este barbeiro');
-                    await supabase.auth.signOut();
-                    showLoginScreen();
-                    return;
-                }
-                
-                // SE CHEGOU AQUI, É BARBEIRO E TEM BARBEARIA
-                currentUser = user;
-                window.currentUser = user;
-                
-                console.log('✅ Usuário autorizado - Barbeiro:', profile.full_name || profile.email);
-                console.log('✅ Barbearia:', shop.name);
-                
-                // Atualizar info do usuário no header
-                if (profile.full_name) {
-                    document.getElementById('userName').textContent = profile.full_name;
-                    document.getElementById('userAvatar').textContent = profile.full_name.charAt(0).toUpperCase();
-                } else if (user && user.email) {
-                    const emailParts = user.email.split('@');
-                    document.getElementById('userName').textContent = emailParts[0] || 'Usuário';
-                    document.getElementById('userEmail').textContent = user.email;
-                    document.getElementById('userAvatar').textContent = emailParts[0].charAt(0).toUpperCase() || 'U';
-                }
-                
-                // Mostrar dashboard
-                hideLoginScreen();
+                // Se não há sessão válida, mostrar login
+                showLoginScreen();
                 
             } catch (error) {
-                console.error('❌ Erro em checkAuth:', error);
+                console.error('Erro ao verificar autenticação:', error);
                 showLoginScreen();
             }
         }
@@ -770,20 +924,23 @@
                     <form id="loginForm" onsubmit="handleBarberLogin(event)">
                         <div class="form-group">
                             <label>Email</label>
-                            <input type="email" id="barberEmail" required placeholder="seu@email.com">
+                            <input type="text" id="barberEmail" required placeholder="seu@email.com ou username">
                         </div>
                         <div class="form-group">
                             <label>Senha</label>
                             <input type="password" id="barberPassword" required placeholder="Sua senha">
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
-                            <input type="checkbox" id="rememberBarber" style="width: auto;">
-                            <label for="rememberBarber" style="margin: 0; color: #999; font-size: 0.9rem;">Manter logado</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="rememberBarber" style="width: auto;">
+                                <label for="rememberBarber" style="margin: 0; color: #999; font-size: 0.9rem;">Manter logado</label>
+                            </div>
+                            <a href="#" onclick="event.preventDefault(); showForgotPasswordModal();" style="color: #e50914; text-decoration: none; font-size: 0.9rem;">Esqueci minha senha</a>
                         </div>
                         <button type="submit" class="btn" style="width: 100%; margin-top: 20px;">Entrar</button>
                     </form>
                     <div style="text-align: center; margin-top: 20px;">
-                        <a href="barberflix-cliente.html" style="color: #999; text-decoration: none; font-size: 0.9rem;">Voltar para página inicial</a>
+                        <a href="javascript:void(0);" onclick="window.location.reload();" style="color: #999; text-decoration: none; font-size: 0.9rem;">Recarregar página</a>
                     </div>
                 </div>
             `;
@@ -799,6 +956,143 @@
             if (mainLayout) mainLayout.style.display = 'flex';
         }
         
+        // Função para mostrar modal de "Esqueci minha senha"
+        function showForgotPasswordModal() {
+            const modal = document.createElement('div');
+            modal.id = 'forgotPasswordModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+            modal.innerHTML = `
+                <div style="background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 40px; max-width: 450px; width: 90%;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2 style="color: #e50914; font-size: 1.5rem; margin-bottom: 10px;">Esqueci minha senha</h2>
+                        <p style="color: #999; font-size: 0.9rem;">Digite seu email ou username para receber o link de redefinição</p>
+                    </div>
+                    <div id="forgotPasswordAlert" class="alert"></div>
+                    <form id="forgotPasswordForm" onsubmit="handleForgotPassword(event)">
+                        <div class="form-group">
+                            <label>Email ou Username</label>
+                            <input type="text" id="forgotPasswordEmail" required placeholder="seu@email.com ou username" autocomplete="username">
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn" style="flex: 1;">Enviar Link de Redefinição</button>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('forgotPasswordModal').remove();" style="flex: 1;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Fechar ao clicar fora
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+        
+        // Função para processar reset de senha
+        async function handleForgotPassword(e) {
+            e.preventDefault();
+            const alert = document.getElementById('forgotPasswordAlert');
+            const btn = e.target.querySelector('button[type="submit"]');
+            const emailOrUsername = document.getElementById('forgotPasswordEmail').value.trim();
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Enviando...';
+                
+                if (!emailOrUsername) {
+                    throw new Error('Digite seu email ou username');
+                }
+                
+                // Se for username, buscar email
+                let email = emailOrUsername;
+                if (!emailOrUsername.includes('@')) {
+                    showAlert(alert, 'Buscando email...', 'success');
+                    
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('email')
+                        .eq('username', emailOrUsername.toLowerCase().trim())
+                        .maybeSingle();
+                    
+                    if (profileError || !profile || !profile.email) {
+                        throw new Error('Username não encontrado. Verifique e tente novamente.');
+                    }
+                    
+                    email = profile.email;
+                }
+                
+                // Enviar email de reset de senha
+                showAlert(alert, 'Enviando email de redefinição...', 'success');
+                
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/barberflix-barbeiro.html?reset=true`
+                });
+                
+                if (error) {
+                    throw new Error('Erro ao enviar email: ' + error.message);
+                }
+                
+                showAlert(alert, '✅ Email de redefinição enviado! Verifique sua caixa de entrada e siga as instruções.', 'success');
+                btn.textContent = '✅ Enviado!';
+                btn.disabled = true;
+                
+                // Fechar modal após 3 segundos
+                setTimeout(() => {
+                    const modal = document.getElementById('forgotPasswordModal');
+                    if (modal) modal.remove();
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Erro ao resetar senha:', error);
+                showAlert(alert, '❌ ' + (error.message || 'Erro ao enviar email de redefinição'), 'error');
+                btn.disabled = false;
+                btn.textContent = 'Enviar Link de Redefinição';
+            }
+        }
+        
+        // ADICIONAR ESTA FUNÇÃO NOVA - ANTES DE handleBarberLogin
+        async function loginWithUsernameOrEmail(usernameOrEmail, password) {
+            // Se não tem @, é username - buscar email correspondente
+            if (!usernameOrEmail.includes('@')) {
+                console.log('🔍 Buscando email para username:', usernameOrEmail);
+                
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('email')
+                    .eq('username', usernameOrEmail.toLowerCase().trim())
+                    .maybeSingle();
+                
+                if (profileError || !profile) {
+                    throw new Error('Username não encontrado');
+                }
+                
+                usernameOrEmail = profile.email;
+                console.log('✅ Email encontrado:', usernameOrEmail);
+            }
+            
+            // Fazer login com email
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: usernameOrEmail,
+                password: password
+            });
+            
+            if (error) throw error;
+            return data;
+        }
+        
         async function handleBarberLogin(e) {
             e.preventDefault();
             const alert = document.getElementById('loginAlert');
@@ -810,7 +1104,6 @@
                 
                 const email = document.getElementById('barberEmail').value.trim();
                 const password = document.getElementById('barberPassword').value;
-                const rememberMe = document.getElementById('rememberBarber').checked;
                 
                 if (!email || !password) {
                     throw new Error('Preencha email e senha');
@@ -819,17 +1112,16 @@
                 // Limpar alerta anterior
                 showAlert(alert, 'Verificando credenciais...', 'success');
                 
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
-                
-                if (error) {
-                    console.error('Erro de autenticação:', error);
-                    if (error.message.includes('Invalid login credentials') || error.message.includes('invalid')) {
-                        throw new Error('Email ou senha incorretos. Verifique suas credenciais.');
+                // ✅ USAR A NOVA FUNÇÃO QUE ACEITA USERNAME OU EMAIL
+                let data;
+                try {
+                    data = await loginWithUsernameOrEmail(email, password);
+                } catch (loginError) {
+                    console.error('Erro de autenticação:', loginError);
+                    if (loginError.message.includes('Invalid login credentials') || loginError.message.includes('invalid') || loginError.message.includes('Username não encontrado')) {
+                        throw new Error('Email/username ou senha incorretos. Verifique suas credenciais.');
                     }
-                    throw error;
+                    throw loginError;
                 }
                 
                 if (!data || !data.user) {
@@ -899,6 +1191,13 @@
                 
                 // Mostrar dashboard
                 hideLoginScreen();
+                
+                // Inicializar Realtime subscriptions
+                initializeRealtimeSubscriptions(shop.id);
+                
+                // Iniciar polling para atualização automática
+                startPolling();
+                
                 setTimeout(() => {
                     loadBarberDashboard();
                 }, 500);
@@ -910,6 +1209,123 @@
                 btn.disabled = false;
                 btn.textContent = 'Entrar';
             }
+        }
+        
+        // ========================================
+        // SISTEMA DE REALTIME SUBSCRIPTIONS
+        // ========================================
+        let realtimeSubscriptions = [];
+        
+        async function initializeRealtimeSubscriptions(shopId) {
+            // Limpar subscriptions anteriores
+            cleanupRealtimeSubscriptions();
+            
+            if (!shopId || !currentUser) {
+                console.warn('⚠️ Não é possível inicializar Realtime: shopId ou currentUser ausente');
+                return;
+            }
+            
+            console.log('🔄 Inicializando Realtime subscriptions para barbearia:', shopId);
+            
+            try {
+                // Subscription para mudanças na barbearia
+                const shopChannel = supabase
+                    .channel('barbershop-changes')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'barbershops',
+                        filter: `id=eq.${shopId}`
+                    }, (payload) => {
+                        console.log('📢 Mudança na barbearia detectada:', payload);
+                        showToast('Atualização', 'Dados da barbearia foram atualizados', 'info');
+                        
+                        // Recarregar formulário se estiver na aba de registro
+                        const registerTab = document.getElementById('register');
+                        if (registerTab && registerTab.classList.contains('active')) {
+                            loadBarberShopForm();
+                        }
+                        
+                        // Atualizar cache
+                        dataCache.shop = null;
+                        dataCache.lastFetch = null;
+                    })
+                    .subscribe();
+                
+                realtimeSubscriptions.push(shopChannel);
+                
+                // Subscription para agendamentos
+                const appointmentsChannel = supabase
+                    .channel('appointments-changes')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'appointments',
+                        filter: `barbershop_id=eq.${shopId}`
+                    }, (payload) => {
+                        console.log('📢 Mudança em agendamentos detectada:', payload);
+                        
+                        // Recarregar dados se estiver nas abas relevantes
+                        const activeTab = document.querySelector('.tab-content.active');
+                        if (activeTab) {
+                            const tabId = activeTab.id;
+                            if (tabId === 'dashboard') {
+                                loadBarberDashboard();
+                            } else if (tabId === 'appointments') {
+                                loadAppointments();
+                            } else if (tabId === 'financial') {
+                                loadFinancial();
+                            } else if (tabId === 'clients') {
+                                loadClients();
+                            }
+                        }
+                        
+                        // Atualizar cache
+                        dataCache.appointments = null;
+                        dataCache.lastFetch = null;
+                        
+                        showToast('Novo Agendamento', 'Há mudanças nos agendamentos', 'info');
+                    })
+                    .subscribe();
+                
+                realtimeSubscriptions.push(appointmentsChannel);
+                
+                // Subscription para serviços
+                const servicesChannel = supabase
+                    .channel('services-changes')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'services',
+                        filter: `barbershop_id=eq.${shopId}`
+                    }, (payload) => {
+                        console.log('📢 Mudança em serviços detectada:', payload);
+                        
+                        // Recarregar serviços se estiver na aba de serviços
+                        const servicesTab = document.getElementById('services');
+                        if (servicesTab && servicesTab.classList.contains('active')) {
+                            loadServices();
+                        }
+                        
+                        showToast('Serviços', 'Lista de serviços foi atualizada', 'info');
+                    })
+                    .subscribe();
+                
+                realtimeSubscriptions.push(servicesChannel);
+                
+                console.log('✅ Realtime subscriptions inicializadas com sucesso');
+                
+            } catch (error) {
+                console.error('❌ Erro ao inicializar Realtime subscriptions:', error);
+            }
+        }
+        
+        function cleanupRealtimeSubscriptions() {
+            console.log('🧹 Limpando Realtime subscriptions...');
+            realtimeSubscriptions.forEach(channel => {
+                supabase.removeChannel(channel);
+            });
+            realtimeSubscriptions = [];
         }
         
         async function showTab(tabName) {
@@ -1025,8 +1441,8 @@
                 // SEGUNDO: Buscar agendamentos da PLANILHA GOOGLE SHEETS
                 const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
                 const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
-                // Buscar colunas A até H (incluindo ID na coluna H)
-                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                // Buscar colunas A até I (incluindo ID na coluna H e Profissional na coluna I)
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:I1000?key=${API_KEY}`;
                 
                 let response;
                 let data;
@@ -1054,10 +1470,11 @@
                 
                 // Converter para objetos
                 let allAppointments = rows.map((row, index) => {
-                    // Formato: Data | Hora | Cliente | Barbearia | Serviços | Observações | Status | ID
+                    // Formato: Data | Hora | Cliente | Barbearia | Serviços | Observações | Status | ID | Profissional (I)
                     // Verificar se status está em G ou se Observações contém status
                     let status = row[6] || 'Pendente';
                     let appointmentId = (row[7] && String(row[7]).trim() !== '') ? String(row[7]).trim() : null; // Coluna H (ID único)
+                    let professional = (row[8] && String(row[8]).trim() !== '') ? String(row[8]).trim() : null; // Coluna I (Profissional)
                     
                     // Log para debug
                     if (!appointmentId && index < 5) { // Log apenas primeiros 5 para não poluir
@@ -1083,6 +1500,7 @@
                         barbershop_name: row[3] || '',
                         services: row[4] || '',
                         notes: row[5] || '',
+                        professional: professional, // Coluna I - Profissional
                         status: status.toLowerCase()
                             .replace('pendente', 'pending')
                             .replace('confirmado', 'confirmed')
@@ -1108,9 +1526,14 @@
                     if (!apt.barbershop_name) return false;
                     const aptName = apt.barbershop_name.toLowerCase().trim();
                     const shopName = shop.name.toLowerCase().trim();
-                    return aptName === shopName || 
+                    const matchesShop = aptName === shopName || 
                            aptName.includes(shopName) || 
                            shopName.includes(aptName);
+                    
+                    // Não mostrar agendamentos que foram processados recentemente
+                    const wasProcessed = isAppointmentProcessed(apt.id);
+                    
+                    return matchesShop && !wasProcessed;
                 });
                 
                 console.log(`✅ ${allAppointments.length} agendamentos da planilha encontrados para barbearia "${shop.name}" do Supabase`);
@@ -1160,89 +1583,89 @@
         
         // Função para atualizar UI do dashboard (reutilizável)
         function updateDashboardUI(allAppointments, shop) {
-            const today = new Date().toISOString().split('T')[0];
-            const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-            
-            // Filtrar agendamentos
-            const todayAppointments = allAppointments.filter(apt => apt.appointment_date === today);
-            const pendingAppointments = allAppointments.filter(apt => apt.status === 'pending');
-            const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed');
-            const monthAppointments = allAppointments.filter(apt => 
-                apt.appointment_date >= startOfMonth && 
-                (apt.status === 'confirmed' || apt.status === 'completed')
-            );
-            
-            // Calcular receita
-            let revenue = 0;
-            monthAppointments.forEach(apt => {
-                const services = apt.services || '';
-                const priceMatch = services.match(/R\$\s*(\d+[\.,]\d+)/);
-                if (priceMatch) {
-                    revenue += parseFloat(priceMatch[1].replace(',', '.'));
+                const today = new Date().toISOString().split('T')[0];
+                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+                
+                // Filtrar agendamentos
+                const todayAppointments = allAppointments.filter(apt => apt.appointment_date === today);
+                const pendingAppointments = allAppointments.filter(apt => apt.status === 'pending');
+                const confirmedAppointments = allAppointments.filter(apt => apt.status === 'confirmed');
+                const monthAppointments = allAppointments.filter(apt => 
+                    apt.appointment_date >= startOfMonth && 
+                    (apt.status === 'confirmed' || apt.status === 'completed')
+                );
+                
+                // Calcular receita
+                let revenue = 0;
+                monthAppointments.forEach(apt => {
+                    const services = apt.services || '';
+                    const priceMatch = services.match(/R\$\s*(\d+[\.,]\d+)/);
+                    if (priceMatch) {
+                        revenue += parseFloat(priceMatch[1].replace(',', '.'));
+                    }
+                });
+                
+                // Atualizar estatísticas
+                document.getElementById('statToday').textContent = todayAppointments.length;
+                document.getElementById('statPending').textContent = pendingAppointments.length;
+                document.getElementById('statRevenue').textContent = `R$ ${revenue.toFixed(2).replace('.', ',')}`;
+                document.getElementById('statConfirmed').textContent = confirmedAppointments.length;
+                
+                // Próximos agendamentos (próximas 3 horas)
+                const now = new Date();
+                const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+                const upcoming = todayAppointments
+                    .filter(apt => {
+                        const aptTime = apt.appointment_time.split(':');
+                        const aptHour = parseInt(aptTime[0]);
+                        const aptMin = parseInt(aptTime[1]);
+                        const nowHour = now.getHours();
+                        const nowMin = now.getMinutes();
+                        const laterHour = threeHoursLater.getHours();
+                        const laterMin = threeHoursLater.getMinutes();
+                        
+                        const aptTotal = aptHour * 60 + aptMin;
+                        const nowTotal = nowHour * 60 + nowMin;
+                        const laterTotal = laterHour * 60 + laterMin;
+                        
+                        return aptTotal >= nowTotal && aptTotal <= laterTotal && 
+                               (apt.status === 'confirmed' || apt.status === 'pending');
+                    })
+                    .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time))
+                    .slice(0, 5);
+                
+                if (upcoming.length > 0) {
+                    document.getElementById('upcomingAppointments').innerHTML = upcoming.map(apt => `
+                        <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: 5px;">${apt.client_email || 'Cliente'}</div>
+                                <div style="color: #999; font-size: 0.9rem;">⏰ ${apt.appointment_time}</div>
+                            </div>
+                            <span style="padding: 5px 10px; background: ${apt.status === 'confirmed' ? 'rgba(0,255,0,0.2)' : 'rgba(255,152,0,0.2)'}; border-radius: 5px; font-size: 0.85rem;">
+                                ${apt.status === 'confirmed' ? '✅ Confirmado' : '⏳ Pendente'}
+                            </span>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('upcomingAppointments').innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum agendamento nas próximas 3 horas</p>';
                 }
-            });
-            
-            // Atualizar estatísticas
-            document.getElementById('statToday').textContent = todayAppointments.length;
-            document.getElementById('statPending').textContent = pendingAppointments.length;
-            document.getElementById('statRevenue').textContent = `R$ ${revenue.toFixed(2).replace('.', ',')}`;
-            document.getElementById('statConfirmed').textContent = confirmedAppointments.length;
-            
-            // Próximos agendamentos (próximas 3 horas)
-            const now = new Date();
-            const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
-            const upcoming = todayAppointments
-                .filter(apt => {
-                    const aptTime = apt.appointment_time.split(':');
-                    const aptHour = parseInt(aptTime[0]);
-                    const aptMin = parseInt(aptTime[1]);
-                    const nowHour = now.getHours();
-                    const nowMin = now.getMinutes();
-                    const laterHour = threeHoursLater.getHours();
-                    const laterMin = threeHoursLater.getMinutes();
-                    
-                    const aptTotal = aptHour * 60 + aptMin;
-                    const nowTotal = nowHour * 60 + nowMin;
-                    const laterTotal = laterHour * 60 + laterMin;
-                    
-                    return aptTotal >= nowTotal && aptTotal <= laterTotal && 
-                           (apt.status === 'confirmed' || apt.status === 'pending');
-                })
-                .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time))
-                .slice(0, 5);
-            
-            if (upcoming.length > 0) {
-                document.getElementById('upcomingAppointments').innerHTML = upcoming.map(apt => `
-                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px;">${apt.client_email || 'Cliente'}</div>
-                            <div style="color: #999; font-size: 0.9rem;">⏰ ${apt.appointment_time}</div>
+                
+                // Agendamentos pendentes (top 5)
+                if (pendingAppointments.length > 0) {
+                    const topPending = pendingAppointments.slice(0, 5);
+                    document.getElementById('pendingAppointments').innerHTML = topPending.map(apt => `
+                        <div data-appointment-id="${apt.id}" style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: opacity 0.3s;">
+                            <div style="font-weight: 600; margin-bottom: 5px;">📅 ${apt.appointment_date} | ⏰ ${apt.appointment_time}</div>
+                            <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
+                            <div style="color: #999; font-size: 0.9rem; margin-bottom: 10px;">${apt.services || 'Sem serviços'}</div>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">✅ Aceitar</button>
+                                <button class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">❌ Recusar</button>
+                            </div>
                         </div>
-                        <span style="padding: 5px 10px; background: ${apt.status === 'confirmed' ? 'rgba(0,255,0,0.2)' : 'rgba(255,152,0,0.2)'}; border-radius: 5px; font-size: 0.85rem;">
-                            ${apt.status === 'confirmed' ? '✅ Confirmado' : '⏳ Pendente'}
-                        </span>
-                    </div>
-                `).join('');
-            } else {
-                document.getElementById('upcomingAppointments').innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Nenhum agendamento nas próximas 3 horas</p>';
-            }
-            
-            // Agendamentos pendentes (top 5)
-            if (pendingAppointments.length > 0) {
-                const topPending = pendingAppointments.slice(0, 5);
-                document.getElementById('pendingAppointments').innerHTML = topPending.map(apt => `
-                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                        <div style="font-weight: 600; margin-bottom: 5px;">📅 ${apt.appointment_date} | ⏰ ${apt.appointment_time}</div>
-                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
-                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 10px;">${apt.notes || 'Sem observações'}</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <button class="btn" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="acceptAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">✅ Aceitar</button>
-                            <button class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 0.9rem;" onclick="rejectAppointmentSheet('${apt.id}', '${apt.appointment_date}', '${apt.appointment_time}', '${(apt.client_email || '').replace(/'/g, "\\'")}', '${(apt.barbershop_name || '').replace(/'/g, "\\'")}', '${(apt.appointment_id || '').replace(/'/g, "\\'")}')">❌ Recusar</button>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                document.getElementById('pendingAppointments').innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
+                    `).join('');
+                } else {
+                    document.getElementById('pendingAppointments').innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
             }
         }
         
@@ -1291,6 +1714,7 @@
                 // Filtros
                 const statusFilter = document.getElementById('filterStatus')?.value || 'all';
                 const dateFilter = document.getElementById('filterDate')?.value || 'all';
+                const professionalFilter = document.getElementById('filterProfessional')?.value || 'all';
                 const searchTerm = (document.getElementById('searchClient')?.value || '').toLowerCase();
                 
                 // ========================================
@@ -1300,8 +1724,8 @@
                 const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
                 const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
                 
-                // Ler dados da planilha (colunas A até H - incluindo ID único)
-                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                // Ler dados da planilha (colunas A até I - incluindo ID único e Profissional)
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:I1000?key=${API_KEY}`;
                 
                 console.log('📊 Buscando agendamentos da planilha...');
                 
@@ -1330,13 +1754,40 @@
                 const rows = data.values || [];
                 console.log(`✅ ${rows.length} linhas encontradas na planilha`);
                 
+                // Buscar profissionais para popular o filtro
+                let employees = [];
+                try {
+                    const { data: supabaseEmployees } = await supabase
+                        .from('employees')
+                        .select('name')
+                        .eq('barbershop_id', shop.id)
+                        .eq('status', 'Ativo');
+                    if (supabaseEmployees) {
+                        employees = supabaseEmployees.map(e => e.name);
+                    }
+                } catch (error) {
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        employees = parsed.filter(e => e.status === 'Ativo').map(e => e.name);
+                    }
+                }
+                
+                // Popular select de profissionais
+                const professionalSelect = document.getElementById('filterProfessional');
+                if (professionalSelect) {
+                    professionalSelect.innerHTML = '<option value="all">Todos os Profissionais</option>' +
+                        employees.map(emp => `<option value="${emp}">${emp}</option>`).join('');
+                }
+                
                 // Converter linhas da planilha em objetos de agendamento
                 let appointments = rows.map((row, index) => {
-                    // Formato: Data | Hora | Cliente | Barbearia | Serviços | Observações | Status | ID
+                    // Formato: Data | Hora | Cliente | Barbearia | Serviços | Observações | Status | ID | Profissional (I)
                     // Na planilha, às vezes Status está vazio em G e aparece em F (Observações)
                     let status = row[6] || 'Pendente'; // Coluna G primeiro
                     let notes = row[5] || ''; // Coluna F
                     let appointmentId = (row[7] && String(row[7]).trim() !== '') ? String(row[7]).trim() : null; // Coluna H (ID único)
+                    let professional = (row[8] && String(row[8]).trim() !== '') ? String(row[8]).trim() : null; // Coluna I (Profissional)
                     
                     // Log para debug
                     if (!appointmentId) {
@@ -1372,6 +1823,7 @@
                         barbershop_name: row[3] || '',
                         services: row[4] || '',
                         notes: notes,
+                        professional: professional, // Coluna I - Profissional
                         status: status.toLowerCase()
                             .replace('pendente', 'pending')
                             .replace('confirmado', 'confirmed')
@@ -1398,9 +1850,14 @@
                     if (!apt.barbershop_name) return false;
                     const aptName = apt.barbershop_name.toLowerCase().trim();
                     const shopName = shop.name.toLowerCase().trim();
-                    return aptName === shopName || 
+                    const matchesShop = aptName === shopName || 
                            aptName.includes(shopName) || 
                            shopName.includes(aptName);
+                    
+                    // Não mostrar agendamentos que foram processados recentemente
+                    const wasProcessed = isAppointmentProcessed(apt.id);
+                    
+                    return matchesShop && !wasProcessed;
                 });
                 
                 console.log(`✅ ${appointments.length} agendamentos da planilha encontrados para barbearia "${shop.name}" do Supabase`);
@@ -1421,6 +1878,13 @@
                     const monthAgo = new Date();
                     monthAgo.setMonth(monthAgo.getMonth() - 1);
                     appointments = appointments.filter(apt => apt.appointment_date >= monthAgo.toISOString().split('T')[0]);
+                }
+                
+                // Filtrar por profissional
+                if (professionalFilter !== 'all') {
+                    appointments = appointments.filter(apt => 
+                        apt.professional && apt.professional.toLowerCase() === professionalFilter.toLowerCase()
+                    );
                 }
                 
                 // Filtrar por busca de cliente
@@ -1447,12 +1911,13 @@
                     const status = statusColors[apt.status] || statusColors.pending;
                     
                     return `
-                        <div style="background: #161b22; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin-bottom: 15px;">
+                        <div data-appointment-id="${apt.id}" style="background: #161b22; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin-bottom: 15px; transition: opacity 0.3s;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                                 <div>
                                     <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 5px;">👤 ${apt.client_email || 'Cliente'}</div>
                                     <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">📧 ${apt.client_email || 'Email não disponível'}</div>
                                     <div style="color: #999; font-size: 0.9rem;">📅 ${apt.appointment_date} | ⏰ ${apt.appointment_time}</div>
+                                    ${apt.professional ? `<div style="color: #e50914; font-size: 0.9rem; margin-top: 5px;">👨‍💼 Profissional: ${apt.professional}</div>` : '<div style="color: #999; font-size: 0.85rem; margin-top: 5px; font-style: italic;">⚠️ Profissional não definido</div>'}
                                     ${apt.services ? `<div style="color: #e50914; font-size: 0.9rem; margin-top: 5px;">💇 ${apt.services}</div>` : ''}
                                 </div>
                                 <span style="padding: 5px 15px; background: ${status.bg}; color: ${status.color}; border-radius: 5px; font-size: 0.85rem; font-weight: 600;">
@@ -1540,7 +2005,7 @@
         
         // Executar requisição individual
         async function executeRequest(request) {
-            const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw0RdEwq2Y4rsUj3-Tz-1XQA9FOnnbVaWiYT_ddiVS9it6METaGnsgH_-Mbb_NopZvdNg/exec';
+            const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxTlKNLE6vQu_J2tiVUVm52N2JApGxmmNNHamQs1OgxFKdY_8rTO7rUVz4JasCrpa91yQ/exec';
             
             console.log('📤 Enviando requisição ao Google Apps Script...', request.updateData);
             
@@ -1581,6 +2046,9 @@
         async function acceptAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
             if (!confirm('Confirmar este agendamento?')) return;
             
+            // Remover item da interface imediatamente (otimistic update)
+            removeAppointmentFromUI(id);
+            
             // Desabilitar botões durante processamento
             disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Confirmado', '', clientEmail, barbershopName, appointmentId);
@@ -1590,8 +2058,63 @@
             const reason = prompt('Motivo da recusa (opcional):');
             if (reason === null) return;
             
+            // Remover item da interface imediatamente (otimistic update)
+            removeAppointmentFromUI(id);
+            
             disableAppointmentButtons(id);
             await updateAppointmentStatusInSheet(date, time, 'Cancelado', reason, clientEmail, barbershopName, appointmentId);
+        }
+        
+        // Armazenar IDs de agendamentos que foram aceitos/recusados (para não mostrar novamente até confirmar atualização)
+        const processedAppointments = new Set();
+        
+        // Remover agendamento da interface imediatamente
+        function removeAppointmentFromUI(id) {
+            // Marcar como processado
+            processedAppointments.add(id);
+            
+            // Remover do dashboard (seção de pendentes)
+            const pendingContainer = document.getElementById('pendingAppointments');
+            if (pendingContainer) {
+                const appointmentElement = pendingContainer.querySelector(`[data-appointment-id="${id}"]`);
+                if (appointmentElement) {
+                    appointmentElement.style.transition = 'opacity 0.3s';
+                    appointmentElement.style.opacity = '0';
+                    appointmentElement.style.pointerEvents = 'none';
+                    setTimeout(() => {
+                        appointmentElement.remove();
+                        // Se não há mais pendentes, mostrar mensagem
+                        if (pendingContainer.children.length === 0 || 
+                            (pendingContainer.children.length === 1 && pendingContainer.children[0].tagName === 'P')) {
+                            pendingContainer.innerHTML = '<p style="color: #0f0; text-align: center; padding: 20px;">✅ Nenhum agendamento pendente</p>';
+                        }
+                    }, 300);
+                }
+            }
+            
+            // Remover da lista de agendamentos
+            const appointmentsList = document.getElementById('appointmentsList');
+            if (appointmentsList) {
+                const appointmentElement = appointmentsList.querySelector(`[data-appointment-id="${id}"]`);
+                if (appointmentElement) {
+                    appointmentElement.style.transition = 'opacity 0.3s';
+                    appointmentElement.style.opacity = '0';
+                    appointmentElement.style.pointerEvents = 'none';
+                    setTimeout(() => {
+                        appointmentElement.remove();
+                    }, 300);
+                }
+            }
+        }
+        
+        // Verificar se agendamento foi processado (para não mostrar novamente)
+        function isAppointmentProcessed(id) {
+            return processedAppointments.has(id);
+        }
+        
+        // Limpar lista de processados após confirmar atualização na planilha
+        function clearProcessedAppointments() {
+            processedAppointments.clear();
         }
         
         async function completeAppointmentSheet(id, date, time, clientEmail = '', barbershopName = '', appointmentId = null) {
@@ -1654,7 +2177,15 @@
                     status: newStatus
                 };
                 
-                console.log('🔍 Dados para atualizar:', updateData);
+                console.log('🔍 Dados para atualizar na planilha:');
+                console.log('  - Action:', updateData.action);
+                console.log('  - ID:', updateData.appointment_id || 'NÃO FORNECIDO (usará fallback)');
+                console.log('  - Data:', updateData.appointment_date);
+                console.log('  - Hora:', updateData.appointment_time);
+                console.log('  - Email:', updateData.client_email);
+                console.log('  - Barbearia:', updateData.barbershop_name);
+                console.log('  - Novo Status:', updateData.status);
+                console.log('📤 JSON completo:', JSON.stringify(updateData));
                 
                 // Validação
                 if (!updateData.appointment_id && (!updateData.appointment_date || !updateData.appointment_time || !updateData.client_email)) {
@@ -1670,26 +2201,39 @@
                     // onSuccess
                     () => {
                         console.log('✅ Status atualizado na planilha!');
+                        console.log('📊 Aguardando propagação da atualização...');
                         showToast('Sucesso!', `Status atualizado para: ${newStatus}`, 'success');
                         
                         // Invalidar cache para forçar atualização
                         dataCache.appointments = null;
                         dataCache.lastFetch = null;
                         
-                        // Recarregar dados com debounce
-                        debouncedReload(() => {
+                        // Aguardar mais tempo para garantir que a planilha foi atualizada
+                        setTimeout(() => {
+                            // Limpar lista de processados para permitir recarregar
+                            clearProcessedAppointments();
+                            
+                            // Recarregar dados
                             loadAppointments();
                             if (document.getElementById('dashboard')?.classList.contains('active')) {
                                 loadBarberDashboard();
                             }
                             enableAppointmentButtons();
-                        }, 1500);
+                        }, 3000); // Aumentar delay para garantir atualização
                     },
                     // onError
                     (error) => {
                         console.error('❌ Erro ao atualizar:', error);
+                        console.error('Dados que falharam:', updateData);
                         showToast('Erro ao atualizar', 'Tente novamente em alguns segundos. O sistema está limitando requisições para evitar sobrecarga.', 'error', 6000);
                         enableAppointmentButtons();
+                        // Recarregar para mostrar estado real
+                        setTimeout(() => {
+                            loadAppointments();
+                            if (document.getElementById('dashboard')?.classList.contains('active')) {
+                                loadBarberDashboard();
+                            }
+                        }, 1000);
                     }
                 );
                 
@@ -1793,21 +2337,1303 @@
             alert('Detalhes do agendamento (em desenvolvimento)');
         }
         
-        // FUNÇÕES PLACEHOLDER PARA OUTRAS ABAS
-        function loadClients() {
-            document.getElementById('clientsList').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Funcionalidade em desenvolvimento...</p>';
+        // ========================================
+        // FUNÇÃO PARA CARREGAR CLIENTES
+        // ========================================
+        async function loadClients() {
+            const listEl = document.getElementById('clientsList');
+            if (!listEl) return;
+            
+            listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;"><span class="loading-spinner"></span> Carregando clientes...</p>';
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    listEl.innerHTML = '<p style="color: #f00;">Usuário não autenticado</p>';
+                    return;
+                }
+                
+                // Buscar barbearia
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id, name')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    listEl.innerHTML = '<p style="color: #f00;">Cadastre sua barbearia primeiro!</p>';
+                    return;
+                }
+                
+                // Buscar agendamentos da planilha para extrair clientes
+                const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
+                const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                
+                let appointments = [];
+                try {
+                    const response = await fetch(sheetsUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const rows = data.values || [];
+                        
+                        appointments = rows.map((row, index) => ({
+                            client_email: row[2] || '',
+                            appointment_date: row[0] || '',
+                            appointment_time: row[1] || '',
+                            services: row[4] || '',
+                            status: (row[6] || 'Pendente').toLowerCase(),
+                            barbershop_name: row[3] || ''
+                        })).filter(apt => 
+                            apt.client_email && 
+                            apt.barbershop_name.toLowerCase().includes(shop.name.toLowerCase())
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar agendamentos:', error);
+                }
+                
+                // Agrupar por cliente
+                const clientsMap = new Map();
+                appointments.forEach(apt => {
+                    const email = apt.client_email.toLowerCase().trim();
+                    if (!clientsMap.has(email)) {
+                        clientsMap.set(email, {
+                            email: apt.client_email,
+                            name: apt.client_email.split('@')[0],
+                            totalAppointments: 0,
+                            confirmedAppointments: 0,
+                            totalSpent: 0,
+                            lastVisit: '',
+                            status: 'Ativo'
+                        });
+                    }
+                    
+                    const client = clientsMap.get(email);
+                    client.totalAppointments++;
+                    
+                    if (apt.status === 'confirmado' || apt.status === 'confirmed' || apt.status === 'concluído' || apt.status === 'completed') {
+                        client.confirmedAppointments++;
+                        
+                        // Extrair preço dos serviços
+                        const priceMatch = apt.services.match(/R\$\s*(\d+[\.,]\d+)/);
+                        if (priceMatch) {
+                            client.totalSpent += parseFloat(priceMatch[1].replace(',', '.'));
+                        }
+                    }
+                    
+                    // Última visita
+                    const visitDate = apt.appointment_date;
+                    if (visitDate && (!client.lastVisit || visitDate > client.lastVisit)) {
+                        client.lastVisit = visitDate;
+                    }
+                });
+                
+                const clients = Array.from(clientsMap.values()).sort((a, b) => b.totalAppointments - a.totalAppointments);
+                
+                if (clients.length === 0) {
+                    listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Nenhum cliente encontrado ainda.</p>';
+                    return;
+                }
+                
+                // Renderizar lista de clientes
+                listEl.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="color: #e50914; margin: 0;">Total de Clientes: ${clients.length}</h3>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="searchClients" placeholder="Buscar cliente..." onkeyup="filterClients()" style="padding: 10px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff; width: 300px;">
+                                <button class="btn" onclick="exportClientsPDF()">
+                                    📄 Exportar PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="clientsListContent">
+                        ${clients.map(client => `
+                            <div class="form-container" style="margin-bottom: 15px;" data-email="${client.email.toLowerCase()}">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                            <div style="width: 50px; height: 50px; border-radius: 50%; background: #e50914; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.2rem;">
+                                                ${client.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 5px;">${client.name}</div>
+                                                <div style="color: #999; font-size: 0.9rem;">${client.email}</div>
+                                            </div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px;">
+                                            <div>
+                                                <div style="color: #999; font-size: 0.85rem; margin-bottom: 5px;">Total de Agendamentos</div>
+                                                <div style="font-size: 1.2rem; font-weight: 600; color: #e50914;">${client.totalAppointments}</div>
+                                            </div>
+                                            <div>
+                                                <div style="color: #999; font-size: 0.85rem; margin-bottom: 5px;">Confirmados</div>
+                                                <div style="font-size: 1.2rem; font-weight: 600; color: #0f0;">${client.confirmedAppointments}</div>
+                                            </div>
+                                            <div>
+                                                <div style="color: #999; font-size: 0.85rem; margin-bottom: 5px;">Total Gasto</div>
+                                                <div style="font-size: 1.2rem; font-weight: 600; color: #0f0;">R$ ${client.totalSpent.toFixed(2).replace('.', ',')}</div>
+                                            </div>
+                                            <div>
+                                                <div style="color: #999; font-size: 0.85rem; margin-bottom: 5px;">Última Visita</div>
+                                                <div style="font-size: 0.9rem; color: #fff;">${client.lastVisit || 'N/A'}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Erro ao carregar clientes:', error);
+                listEl.innerHTML = '<p style="color: #f00;">Erro ao carregar clientes: ' + error.message + '</p>';
+            }
         }
         
-        function loadFinancial() {
-            document.getElementById('financialContent').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Funcionalidade em desenvolvimento...</p>';
+        function filterClients() {
+            const searchTerm = document.getElementById('searchClients')?.value.toLowerCase() || '';
+            const cards = document.querySelectorAll('[data-email]');
+            
+            cards.forEach(card => {
+                const email = card.getAttribute('data-email') || '';
+                if (email.includes(searchTerm) || searchTerm === '') {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
         }
         
-        function loadEmployees() {
-            document.getElementById('employeesList').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Funcionalidade em desenvolvimento...</p>';
+        // ========================================
+        // FUNÇÃO PARA CARREGAR FINANCEIRO
+        // ========================================
+        async function loadFinancial() {
+            const contentEl = document.getElementById('financialContent');
+            if (!contentEl) return;
+            
+            contentEl.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;"><span class="loading-spinner"></span> Carregando dados financeiros...</p>';
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    contentEl.innerHTML = '<p style="color: #f00;">Usuário não autenticado</p>';
+                    return;
+                }
+                
+                // Buscar barbearia
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id, name')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    contentEl.innerHTML = '<p style="color: #f00;">Cadastre sua barbearia primeiro!</p>';
+                    return;
+                }
+                
+                // Buscar agendamentos da planilha
+                const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
+                const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                
+                let appointments = [];
+                try {
+                    const response = await fetch(sheetsUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const rows = data.values || [];
+                        
+                        appointments = rows.map((row, index) => {
+                            const services = row[4] || '';
+                            const priceMatch = services.match(/R\$\s*(\d+[\.,]\d+)/);
+                            const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
+                            
+                            return {
+                                date: row[0] || '',
+                                time: row[1] || '',
+                                client: row[2] || '',
+                                services: services,
+                                price: price,
+                                status: (row[6] || 'Pendente').toLowerCase(),
+                                barbershop_name: row[3] || ''
+                            };
+                        }).filter(apt => 
+                            apt.barbershop_name.toLowerCase().includes(shop.name.toLowerCase()) &&
+                            (apt.status === 'confirmado' || apt.status === 'confirmed' || apt.status === 'concluído' || apt.status === 'completed')
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar agendamentos:', error);
+                }
+                
+                // Calcular estatísticas
+                const today = new Date().toISOString().split('T')[0];
+                const startOfWeek = new Date();
+                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                
+                const todayRevenue = appointments
+                    .filter(apt => apt.date === today)
+                    .reduce((sum, apt) => sum + apt.price, 0);
+                
+                const weekRevenue = appointments
+                    .filter(apt => {
+                        const aptDate = new Date(apt.date);
+                        return aptDate >= startOfWeek;
+                    })
+                    .reduce((sum, apt) => sum + apt.price, 0);
+                
+                const monthRevenue = appointments
+                    .filter(apt => {
+                        const aptDate = new Date(apt.date);
+                        return aptDate >= startOfMonth;
+                    })
+                    .reduce((sum, apt) => sum + apt.price, 0);
+                
+                const totalRevenue = appointments.reduce((sum, apt) => sum + apt.price, 0);
+                const totalAppointments = appointments.length;
+                const avgTicket = totalAppointments > 0 ? totalRevenue / totalAppointments : 0;
+                
+                // Agrupar por mês para gráfico
+                const monthlyData = {};
+                appointments.forEach(apt => {
+                    if (apt.date) {
+                        const month = apt.date.substring(0, 7); // YYYY-MM
+                        if (!monthlyData[month]) {
+                            monthlyData[month] = 0;
+                        }
+                        monthlyData[month] += apt.price;
+                    }
+                });
+                
+                const months = Object.keys(monthlyData).sort();
+                const revenues = months.map(m => monthlyData[m]);
+                
+                // Renderizar
+                contentEl.innerHTML = `
+            <div style="margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #e50914; margin: 0;">📊 Resumo Financeiro</h3>
+                    <button class="btn" onclick="exportFinancialPDF()">
+                        📄 Exportar Relatório PDF
+                    </button>
+                </div>
+                        <div class="stats-grid" style="margin-bottom: 30px;">
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #0f0;">R$ ${todayRevenue.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Receita Hoje</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #0f0;">R$ ${weekRevenue.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Receita da Semana</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #0f0;">R$ ${monthRevenue.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Receita do Mês</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #e50914;">R$ ${totalRevenue.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Receita Total</div>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-grid" style="margin-bottom: 30px;">
+                            <div class="stat-card">
+                                <div class="stat-value">${totalAppointments}</div>
+                                <div class="stat-label">Total de Serviços</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #e50914;">R$ ${avgTicket.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Ticket Médio</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-container" style="margin-top: 30px;">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">📈 Receitas por Mês</h3>
+                            <div style="display: flex; align-items: end; gap: 10px; height: 200px; margin-top: 20px;">
+                                ${months.map((month, index) => {
+                                    const maxRevenue = Math.max(...revenues);
+                                    const height = maxRevenue > 0 ? (revenues[index] / maxRevenue) * 100 : 0;
+                                    return `
+                                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                                            <div style="width: 100%; background: rgba(229, 9, 20, 0.2); border-radius: 5px 5px 0 0; position: relative; min-height: 150px; display: flex; align-items: end;">
+                                                <div style="width: 100%; background: linear-gradient(to top, #e50914, #f40612); height: ${height}%; border-radius: 5px 5px 0 0; transition: all 0.3s;"></div>
+                                                <div style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); font-size: 0.8rem; color: #999; white-space: nowrap;">
+                                                    R$ ${revenues[index].toFixed(0)}
+                                                </div>
+                                            </div>
+                                            <div style="font-size: 0.75rem; color: #999; margin-top: 30px; text-align: center;">
+                                                ${new Date(month + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="form-container" style="margin-top: 30px;">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">💰 Últimas Transações</h3>
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${appointments.slice(-20).reverse().map(apt => `
+                                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <div style="font-weight: 600; margin-bottom: 5px;">${apt.client || 'Cliente'}</div>
+                                            <div style="color: #999; font-size: 0.9rem;">${apt.date} ${apt.time} - ${apt.services}</div>
+                                        </div>
+                                        <div style="font-size: 1.2rem; font-weight: 600; color: #0f0;">
+                                            R$ ${apt.price.toFixed(2).replace('.', ',')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Erro ao carregar financeiro:', error);
+                contentEl.innerHTML = '<p style="color: #f00;">Erro ao carregar dados financeiros: ' + error.message + '</p>';
+            }
         }
         
-        function loadExpenses() {
-            document.getElementById('expensesList').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Funcionalidade em desenvolvimento...</p>';
+        // ========================================
+        // FUNÇÃO PARA CARREGAR FUNCIONÁRIOS/PROFISSIONAIS
+        // ========================================
+        async function loadEmployees() {
+            const listEl = document.getElementById('employeesList');
+            if (!listEl) return;
+            
+            listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;"><span class="loading-spinner"></span> Carregando funcionários...</p>';
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    listEl.innerHTML = '<p style="color: #f00;">Usuário não autenticado</p>';
+                    return;
+                }
+                
+                // Buscar barbearia
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    listEl.innerHTML = '<p style="color: #f00;">Cadastre sua barbearia primeiro!</p>';
+                    return;
+                }
+                
+                // Buscar funcionários do Supabase (se a tabela existir) ou usar localStorage
+                let employees = [];
+                try {
+                    const { data: supabaseEmployees } = await supabase
+                        .from('employees')
+                        .select('*')
+                        .eq('barbershop_id', shop.id)
+                        .order('name', { ascending: true });
+                    
+                    if (supabaseEmployees) {
+                        employees = supabaseEmployees;
+                    }
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    if (stored) {
+                        employees = JSON.parse(stored);
+                    }
+                }
+                
+                // Renderizar
+                listEl.innerHTML = `
+                    <div style="margin-bottom: 30px;">
+                        <div class="form-container" style="margin-bottom: 30px;">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">➕ Adicionar Novo Profissional</h3>
+                            <div id="employeeAlert" class="alert"></div>
+                            <form id="employeeForm" onsubmit="handleAddEmployee(event)">
+                                <h4 style="color: #e50914; margin: 20px 0 15px 0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">📋 Dados Pessoais</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Nome Completo *</label>
+                                        <input type="text" id="employeeName" required placeholder="Ex: João Silva">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email de Contato *</label>
+                                        <input type="email" id="employeeEmail" required placeholder="joao@email.com">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Telefone *</label>
+                                        <input type="tel" id="employeePhone" required placeholder="(00) 00000-0000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>WhatsApp *</label>
+                                        <input type="tel" id="employeeWhatsapp" required placeholder="(00) 00000-0000">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Especialidade</label>
+                                        <input type="text" id="employeeSpecialty" placeholder="Ex: Corte, Barba, etc.">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Data de Contratação *</label>
+                                        <input type="date" id="employeeHireDate" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <select id="employeeStatus" style="width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff; font-size: 16px;">
+                                        <option value="Ativo">Ativo</option>
+                                        <option value="Inativo">Inativo</option>
+                                        <option value="Férias">Férias</option>
+                                        <option value="Licença">Licença</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Observações</label>
+                                    <textarea id="employeeNotes" rows="3" placeholder="Informações adicionais sobre o profissional"></textarea>
+                                </div>
+                                
+                                <h4 style="color: #e50914; margin: 20px 0 15px 0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">🔐 Dados de Acesso</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Email para Login *</label>
+                                        <input type="email" id="employeeLoginEmail" required placeholder="login@email.com">
+                                        <small style="color: #999; font-size: 0.85rem; margin-top: 5px; display: block;">Email que o profissional usará para acessar o painel</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Senha *</label>
+                                        <input type="password" id="employeePassword" required placeholder="Mínimo 6 caracteres" minlength="6">
+                                        <small style="color: #999; font-size: 0.85rem; margin-top: 5px; display: block;">Senha para acesso ao painel do profissional</small>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn">Adicionar Profissional</button>
+                            </form>
+                        </div>
+                        
+                        <div class="form-container">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">👥 Lista de Profissionais (${employees.length})</h3>
+                            ${employees.length === 0 ? 
+                                '<p style="color: #999; text-align: center; padding: 40px;">Nenhum profissional cadastrado ainda.</p>' :
+                                `
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                                    ${employees.map((emp, index) => {
+                                        const statusColors = {
+                                            'Ativo': { bg: 'rgba(0,255,0,0.2)', color: '#0f0' },
+                                            'Inativo': { bg: 'rgba(255,0,0,0.2)', color: '#f00' },
+                                            'Férias': { bg: 'rgba(255,152,0,0.2)', color: '#ff9800' },
+                                            'Licença': { bg: 'rgba(128,128,128,0.2)', color: '#888' }
+                                        };
+                                        const statusStyle = statusColors[emp.status] || statusColors['Ativo'];
+                                        
+                                        return `
+                                            <div class="form-container" style="margin-bottom: 0;">
+                                                <div style="display: flex; align-items: start; gap: 15px; margin-bottom: 15px;">
+                                                    <div style="width: 60px; height: 60px; border-radius: 50%; background: #e50914; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.5rem; flex-shrink: 0;">
+                                                        ${emp.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div style="flex: 1;">
+                                                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 5px;">${emp.name}</div>
+                                                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">📧 ${emp.email}</div>
+                                                        <div style="color: #999; font-size: 0.9rem; margin-bottom: 5px;">📱 ${emp.whatsapp || emp.phone || 'N/A'}</div>
+                                                        <div style="color: #e50914; font-size: 0.85rem;">🔐 Login: ${emp.login_email || 'N/A'}</div>
+                                                    </div>
+                                                </div>
+                                                ${emp.specialty ? `<div style="margin-bottom: 10px;"><span style="color: #e50914; font-size: 0.9rem;">🎯 ${emp.specialty}</span></div>` : ''}
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                                    <div>
+                                                        <div style="color: #999; font-size: 0.85rem; margin-bottom: 5px;">Contratado em</div>
+                                                        <div style="font-size: 0.9rem;">${emp.hire_date || 'N/A'}</div>
+                                                    </div>
+                                                    <span style="padding: 5px 12px; background: ${statusStyle.bg}; color: ${statusStyle.color}; border-radius: 5px; font-size: 0.85rem; font-weight: 600;">
+                                                        ${emp.status || 'Ativo'}
+                                                    </span>
+                                                </div>
+                                                ${emp.notes ? `<div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 5px; margin-bottom: 15px; color: #ccc; font-size: 0.9rem;">${emp.notes}</div>` : ''}
+                                                <div style="display: flex; gap: 10px;">
+                                                    <button class="btn btn-secondary" style="flex: 1; padding: 8px; font-size: 0.9rem;" onclick="editEmployee(${index})">✏️ Editar</button>
+                                                    <button class="btn btn-danger" style="flex: 1; padding: 8px; font-size: 0.9rem;" onclick="deleteEmployee(${index})">🗑️ Remover</button>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                                `
+                            }
+                        </div>
+                    </div>
+                `;
+                
+                // Definir data padrão como hoje
+                const dateInput = document.getElementById('employeeHireDate');
+                if (dateInput) {
+                    dateInput.value = new Date().toISOString().split('T')[0];
+                }
+                
+            } catch (error) {
+                console.error('Erro ao carregar funcionários:', error);
+                listEl.innerHTML = '<p style="color: #f00;">Erro ao carregar funcionários: ' + error.message + '</p>';
+            }
+        }
+        
+        async function handleAddEmployee(e) {
+            e.preventDefault();
+            const alert = document.getElementById('employeeAlert');
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    showAlert(alert, 'Erro: Você precisa estar logado.', 'error');
+                    return;
+                }
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) throw new Error('Cadastre sua barbearia primeiro!');
+                
+                // Hash da senha (usando bcrypt simples ou armazenar hash no Supabase)
+                // Por enquanto, vamos armazenar a senha (em produção, usar hash!)
+                const password = document.getElementById('employeePassword').value;
+                
+                // Criar hash simples (em produção, usar bcrypt no backend!)
+                // Por segurança, vamos criar um hash básico
+                const passwordHash = btoa(password).split('').reverse().join(''); // Hash básico (NÃO SEGURO - apenas exemplo)
+                
+                const employee = {
+                    name: document.getElementById('employeeName').value,
+                    email: document.getElementById('employeeEmail').value,
+                    phone: document.getElementById('employeePhone').value,
+                    whatsapp: document.getElementById('employeeWhatsapp').value,
+                    specialty: document.getElementById('employeeSpecialty').value || null,
+                    hire_date: document.getElementById('employeeHireDate').value,
+                    status: document.getElementById('employeeStatus').value,
+                    notes: document.getElementById('employeeNotes').value || null,
+                    login_email: document.getElementById('employeeLoginEmail').value,
+                    password_hash: passwordHash, // Em produção, usar bcrypt!
+                    barbershop_id: shop.id
+                };
+                
+                // Validar senha
+                if (password.length < 6) {
+                    throw new Error('A senha deve ter no mínimo 6 caracteres');
+                }
+                
+                // Validar email de login único
+                if (employee.login_email === employee.email) {
+                    // Se for o mesmo email, está ok
+                }
+                
+                // Tentar salvar no Supabase primeiro
+                try {
+                    const { error } = await supabase.from('employees').insert(employee);
+                    if (error) {
+                        if (error.message.includes('duplicate') || error.message.includes('unique')) {
+                            throw new Error('Este email de login já está em uso. Escolha outro.');
+                        }
+                        throw error;
+                    }
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    let employees = stored ? JSON.parse(stored) : [];
+                    
+                    // Verificar se login_email já existe
+                    const emailExists = employees.some(e => e.login_email === employee.login_email);
+                    if (emailExists) {
+                        throw new Error('Este email de login já está em uso. Escolha outro.');
+                    }
+                    
+                    employees.push({ ...employee, id: Date.now() });
+                    localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                }
+                
+                showToast('Sucesso!', 'Profissional adicionado com sucesso', 'success');
+                document.getElementById('employeeForm').reset();
+                document.getElementById('employeeHireDate').value = new Date().toISOString().split('T')[0];
+                loadEmployees();
+                
+            } catch (error) {
+                showAlert(alert, error.message, 'error');
+            }
+        }
+        
+        async function editEmployee(index) {
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) return;
+                
+                let employees = [];
+                try {
+                    const { data } = await supabase
+                        .from('employees')
+                        .select('*')
+                        .eq('barbershop_id', shop.id);
+                    if (data) employees = data;
+                } catch (error) {
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    if (stored) employees = JSON.parse(stored);
+                }
+                
+                const employee = employees[index];
+                if (!employee) return;
+                
+                // Preencher formulário
+                document.getElementById('employeeName').value = employee.name || '';
+                document.getElementById('employeeEmail').value = employee.email || '';
+                document.getElementById('employeePhone').value = employee.phone || '';
+                document.getElementById('employeeWhatsapp').value = employee.whatsapp || '';
+                document.getElementById('employeeSpecialty').value = employee.specialty || '';
+                document.getElementById('employeeHireDate').value = employee.hire_date || '';
+                document.getElementById('employeeStatus').value = employee.status || 'Ativo';
+                document.getElementById('employeeNotes').value = employee.notes || '';
+                document.getElementById('employeeLoginEmail').value = employee.login_email || '';
+                // Não preencher senha por segurança
+                
+                // Modificar função de submit para editar
+                const form = document.getElementById('employeeForm');
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const updatedEmployee = {
+                        name: document.getElementById('employeeName').value,
+                        email: document.getElementById('employeeEmail').value,
+                        phone: document.getElementById('employeePhone').value,
+                        whatsapp: document.getElementById('employeeWhatsapp').value,
+                        specialty: document.getElementById('employeeSpecialty').value || null,
+                        hire_date: document.getElementById('employeeHireDate').value,
+                        status: document.getElementById('employeeStatus').value,
+                        notes: document.getElementById('employeeNotes').value || null,
+                        login_email: document.getElementById('employeeLoginEmail').value
+                    };
+                    
+                    // Se senha foi preenchida, atualizar também
+                    const newPassword = document.getElementById('employeePassword').value;
+                    if (newPassword && newPassword.length >= 6) {
+                        const passwordHash = btoa(newPassword).split('').reverse().join('');
+                        updatedEmployee.password_hash = passwordHash;
+                    }
+                    
+                    try {
+                        if (employee.id) {
+                            await supabase.from('employees').update(updatedEmployee).eq('id', employee.id);
+                        } else {
+                            const stored = localStorage.getItem(`employees_${shop.id}`);
+                            let employees = stored ? JSON.parse(stored) : [];
+                            employees[index] = { ...employees[index], ...updatedEmployee };
+                            localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                        }
+                        
+                        showToast('Sucesso!', 'Profissional atualizado', 'success');
+                        form.onsubmit = handleAddEmployee;
+                        form.reset();
+                        loadEmployees();
+                    } catch (error) {
+                        showToast('Erro', error.message, 'error');
+                    }
+                };
+                
+                // Scroll para o formulário
+                document.getElementById('employeeForm').scrollIntoView({ behavior: 'smooth' });
+                showToast('Info', 'Preencha os dados e salve para atualizar', 'info');
+                
+            } catch (error) {
+                showToast('Erro', 'Erro ao editar: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteEmployee(index) {
+            if (!confirm('Remover este profissional?')) return;
+            
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) return;
+                
+                // Tentar deletar do Supabase
+                try {
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    const employees = stored ? JSON.parse(stored) : [];
+                    const employee = employees[index];
+                    
+                    if (employee.id) {
+                        await supabase.from('employees').delete().eq('id', employee.id);
+                    }
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    let employees = stored ? JSON.parse(stored) : [];
+                    employees.splice(index, 1);
+                    localStorage.setItem(`employees_${shop.id}`, JSON.stringify(employees));
+                }
+                
+                showToast('Sucesso!', 'Profissional removido', 'success');
+                loadEmployees();
+                
+            } catch (error) {
+                showToast('Erro', 'Erro ao remover: ' + error.message, 'error');
+            }
+        }
+        
+        // ========================================
+        // FUNÇÕES DE EXPORTAÇÃO PDF
+        // ========================================
+        async function exportEmployeesPDF() {
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id, name')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    showToast('Erro', 'Cadastre sua barbearia primeiro', 'error');
+                    return;
+                }
+                
+                let employees = [];
+                try {
+                    const { data } = await supabase
+                        .from('employees')
+                        .select('*')
+                        .eq('barbershop_id', shop.id)
+                        .order('name', { ascending: true });
+                    if (data) employees = data;
+                } catch (error) {
+                    const stored = localStorage.getItem(`employees_${shop.id}`);
+                    if (stored) employees = JSON.parse(stored);
+                }
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Título
+                doc.setFontSize(18);
+                doc.setTextColor(229, 9, 20);
+                doc.text('Relatório de Funcionários', 14, 20);
+                
+                // Informações da barbearia
+                doc.setFontSize(12);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Barbearia: ${shop.name}`, 14, 30);
+                doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
+                doc.text(`Total de Profissionais: ${employees.length}`, 14, 42);
+                
+                // Tabela
+                const tableData = employees.map(emp => [
+                    emp.name || 'N/A',
+                    emp.email || 'N/A',
+                    emp.phone || 'N/A',
+                    emp.specialty || 'N/A',
+                    emp.hire_date || 'N/A',
+                    emp.status || 'Ativo'
+                ]);
+                
+                doc.autoTable({
+                    startY: 50,
+                    head: [['Nome', 'Email', 'Telefone', 'Especialidade', 'Contratação', 'Status']],
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [229, 9, 20] },
+                    styles: { fontSize: 9 }
+                });
+                
+                doc.save(`funcionarios_${shop.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+                showToast('Sucesso!', 'PDF exportado com sucesso', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao exportar PDF:', error);
+                showToast('Erro', 'Erro ao exportar PDF: ' + error.message, 'error');
+            }
+        }
+        
+        async function exportClientsPDF() {
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id, name')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    showToast('Erro', 'Cadastre sua barbearia primeiro', 'error');
+                    return;
+                }
+                
+                // Buscar clientes (mesma lógica do loadClients)
+                const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
+                const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                
+                let appointments = [];
+                try {
+                    const response = await fetch(sheetsUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const rows = data.values || [];
+                        appointments = rows.map((row) => ({
+                            client_email: row[2] || '',
+                            appointment_date: row[0] || '',
+                            services: row[4] || '',
+                            status: (row[6] || 'Pendente').toLowerCase(),
+                            barbershop_name: row[3] || ''
+                        })).filter(apt => 
+                            apt.client_email && 
+                            apt.barbershop_name.toLowerCase().includes(shop.name.toLowerCase())
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar agendamentos:', error);
+                }
+                
+                // Agrupar por cliente
+                const clientsMap = new Map();
+                appointments.forEach(apt => {
+                    const email = apt.client_email.toLowerCase().trim();
+                    if (!clientsMap.has(email)) {
+                        clientsMap.set(email, {
+                            email: apt.client_email,
+                            name: apt.client_email.split('@')[0],
+                            totalAppointments: 0,
+                            confirmedAppointments: 0,
+                            totalSpent: 0
+                        });
+                    }
+                    const client = clientsMap.get(email);
+                    client.totalAppointments++;
+                    if (apt.status === 'confirmado' || apt.status === 'confirmed' || apt.status === 'concluído' || apt.status === 'completed') {
+                        client.confirmedAppointments++;
+                        const priceMatch = apt.services.match(/R\$\s*(\d+[\.,]\d+)/);
+                        if (priceMatch) {
+                            client.totalSpent += parseFloat(priceMatch[1].replace(',', '.'));
+                        }
+                    }
+                });
+                
+                const clients = Array.from(clientsMap.values()).sort((a, b) => b.totalAppointments - a.totalAppointments);
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(18);
+                doc.setTextColor(229, 9, 20);
+                doc.text('Relatório de Clientes', 14, 20);
+                
+                doc.setFontSize(12);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Barbearia: ${shop.name}`, 14, 30);
+                doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
+                doc.text(`Total de Clientes: ${clients.length}`, 14, 42);
+                
+                const tableData = clients.map(client => [
+                    client.name,
+                    client.email,
+                    client.totalAppointments.toString(),
+                    client.confirmedAppointments.toString(),
+                    `R$ ${client.totalSpent.toFixed(2).replace('.', ',')}`
+                ]);
+                
+                doc.autoTable({
+                    startY: 50,
+                    head: [['Nome', 'Email', 'Total Agend.', 'Confirmados', 'Total Gasto']],
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [229, 9, 20] },
+                    styles: { fontSize: 9 }
+                });
+                
+                doc.save(`clientes_${shop.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+                showToast('Sucesso!', 'PDF exportado com sucesso', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao exportar PDF:', error);
+                showToast('Erro', 'Erro ao exportar PDF: ' + error.message, 'error');
+            }
+        }
+        
+        async function exportFinancialPDF() {
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id, name')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    showToast('Erro', 'Cadastre sua barbearia primeiro', 'error');
+                    return;
+                }
+                
+                // Buscar agendamentos (mesma lógica do loadFinancial)
+                const SPREADSHEET_ID = '1YKXLl1zuKxLhyFLsZDWN2MKbUgGU-idOlT0ZBv_z2lQ';
+                const API_KEY = 'AIzaSyBI140KHzvGa6B7vcrXHzKpSysPEkt4W88';
+                const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:H1000?key=${API_KEY}`;
+                
+                let appointments = [];
+                try {
+                    const response = await fetch(sheetsUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const rows = data.values || [];
+                        appointments = rows.map((row) => {
+                            const services = row[4] || '';
+                            const priceMatch = services.match(/R\$\s*(\d+[\.,]\d+)/);
+                            const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
+                            return {
+                                date: row[0] || '',
+                                time: row[1] || '',
+                                client: row[2] || '',
+                                services: services,
+                                price: price,
+                                status: (row[6] || 'Pendente').toLowerCase(),
+                                barbershop_name: row[3] || ''
+                            };
+                        }).filter(apt => 
+                            apt.barbershop_name.toLowerCase().includes(shop.name.toLowerCase()) &&
+                            (apt.status === 'confirmado' || apt.status === 'confirmed' || apt.status === 'concluído' || apt.status === 'completed')
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar agendamentos:', error);
+                }
+                
+                const today = new Date().toISOString().split('T')[0];
+                const startOfWeek = new Date();
+                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                
+                const todayRevenue = appointments.filter(apt => apt.date === today).reduce((sum, apt) => sum + apt.price, 0);
+                const weekRevenue = appointments.filter(apt => new Date(apt.date) >= startOfWeek).reduce((sum, apt) => sum + apt.price, 0);
+                const monthRevenue = appointments.filter(apt => new Date(apt.date) >= startOfMonth).reduce((sum, apt) => sum + apt.price, 0);
+                const totalRevenue = appointments.reduce((sum, apt) => sum + apt.price, 0);
+                const totalAppointments = appointments.length;
+                const avgTicket = totalAppointments > 0 ? totalRevenue / totalAppointments : 0;
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(18);
+                doc.setTextColor(229, 9, 20);
+                doc.text('Relatório Financeiro', 14, 20);
+                
+                doc.setFontSize(12);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Barbearia: ${shop.name}`, 14, 30);
+                doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
+                
+                // Resumo
+                doc.setFontSize(14);
+                doc.text('Resumo Financeiro', 14, 50);
+                doc.setFontSize(11);
+                doc.text(`Receita Hoje: R$ ${todayRevenue.toFixed(2).replace('.', ',')}`, 14, 60);
+                doc.text(`Receita da Semana: R$ ${weekRevenue.toFixed(2).replace('.', ',')}`, 14, 66);
+                doc.text(`Receita do Mês: R$ ${monthRevenue.toFixed(2).replace('.', ',')}`, 14, 72);
+                doc.text(`Receita Total: R$ ${totalRevenue.toFixed(2).replace('.', ',')}`, 14, 78);
+                doc.text(`Total de Serviços: ${totalAppointments}`, 14, 84);
+                doc.text(`Ticket Médio: R$ ${avgTicket.toFixed(2).replace('.', ',')}`, 14, 90);
+                
+                // Últimas transações
+                const recentTransactions = appointments.slice(-20).reverse();
+                const tableData = recentTransactions.map(apt => [
+                    apt.date || 'N/A',
+                    apt.client || 'N/A',
+                    apt.services.substring(0, 30) || 'N/A',
+                    `R$ ${apt.price.toFixed(2).replace('.', ',')}`
+                ]);
+                
+                doc.autoTable({
+                    startY: 100,
+                    head: [['Data', 'Cliente', 'Serviço', 'Valor']],
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [229, 9, 20] },
+                    styles: { fontSize: 8 }
+                });
+                
+                doc.save(`relatorio_financeiro_${shop.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+                showToast('Sucesso!', 'Relatório PDF exportado com sucesso', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao exportar PDF:', error);
+                showToast('Erro', 'Erro ao exportar PDF: ' + error.message, 'error');
+            }
+        }
+        
+        // ========================================
+        // FUNÇÃO PARA CARREGAR DESPESAS
+        // ========================================
+        async function loadExpenses() {
+            const listEl = document.getElementById('expensesList');
+            if (!listEl) return;
+            
+            listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;"><span class="loading-spinner"></span> Carregando despesas...</p>';
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    listEl.innerHTML = '<p style="color: #f00;">Usuário não autenticado</p>';
+                    return;
+                }
+                
+                // Buscar barbearia
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) {
+                    listEl.innerHTML = '<p style="color: #f00;">Cadastre sua barbearia primeiro!</p>';
+                    return;
+                }
+                
+                // Buscar despesas do Supabase (se a tabela existir) ou usar localStorage
+                let expenses = [];
+                try {
+                    // Tentar buscar do Supabase primeiro
+                    const { data: supabaseExpenses } = await supabase
+                        .from('expenses')
+                        .select('*')
+                        .eq('barbershop_id', shop.id)
+                        .order('date', { ascending: false });
+                    
+                    if (supabaseExpenses) {
+                        expenses = supabaseExpenses;
+                    }
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`expenses_${shop.id}`);
+                    if (stored) {
+                        expenses = JSON.parse(stored);
+                    }
+                }
+                
+                // Calcular totais
+                const today = new Date().toISOString().split('T')[0];
+                const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+                
+                const todayExpenses = expenses
+                    .filter(exp => exp.date === today)
+                    .reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+                
+                const monthExpenses = expenses
+                    .filter(exp => exp.date >= startOfMonth)
+                    .reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+                
+                const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+                
+                // Renderizar
+                listEl.innerHTML = `
+                    <div style="margin-bottom: 30px;">
+                        <div class="stats-grid" style="margin-bottom: 30px;">
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #f00;">R$ ${todayExpenses.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Despesas Hoje</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #f00;">R$ ${monthExpenses.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Despesas do Mês</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #f00;">R$ ${totalExpenses.toFixed(2).replace('.', ',')}</div>
+                                <div class="stat-label">Total de Despesas</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-container" style="margin-bottom: 30px;">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">➕ Adicionar Nova Despesa</h3>
+                            <div id="expenseAlert" class="alert"></div>
+                            <form id="expenseForm" onsubmit="handleAddExpense(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Descrição *</label>
+                                        <input type="text" id="expenseDescription" required placeholder="Ex: Aluguel, Material, etc.">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Valor *</label>
+                                        <input type="number" id="expenseAmount" step="0.01" required placeholder="0.00">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Data *</label>
+                                        <input type="date" id="expenseDate" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Categoria</label>
+                                        <select id="expenseCategory" style="width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff; font-size: 16px;">
+                                            <option value="Aluguel">Aluguel</option>
+                                            <option value="Material">Material</option>
+                                            <option value="Salário">Salário</option>
+                                            <option value="Energia">Energia</option>
+                                            <option value="Água">Água</option>
+                                            <option value="Internet">Internet</option>
+                                            <option value="Outros">Outros</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn">Adicionar Despesa</button>
+                            </form>
+                        </div>
+                        
+                        <div class="form-container">
+                            <h3 style="color: #e50914; margin-bottom: 20px;">📋 Histórico de Despesas</h3>
+                            ${expenses.length === 0 ? 
+                                '<p style="color: #999; text-align: center; padding: 40px;">Nenhuma despesa cadastrada ainda.</p>' :
+                                `
+                                <div style="max-height: 500px; overflow-y: auto;">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Data</th>
+                                                <th>Descrição</th>
+                                                <th>Categoria</th>
+                                                <th>Valor</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${expenses.map((exp, index) => `
+                                                <tr>
+                                                    <td>${exp.date || 'N/A'}</td>
+                                                    <td>${exp.description || 'N/A'}</td>
+                                                    <td>${exp.category || 'Outros'}</td>
+                                                    <td style="color: #f00; font-weight: 600;">R$ ${parseFloat(exp.amount || 0).toFixed(2).replace('.', ',')}</td>
+                                                    <td>
+                                                        <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" onclick="deleteExpense(${index})">Remover</button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                `
+                            }
+                        </div>
+                    </div>
+                `;
+                
+                // Definir data padrão como hoje
+                const dateInput = document.getElementById('expenseDate');
+                if (dateInput) {
+                    dateInput.value = today;
+                }
+                
+            } catch (error) {
+                console.error('Erro ao carregar despesas:', error);
+                listEl.innerHTML = '<p style="color: #f00;">Erro ao carregar despesas: ' + error.message + '</p>';
+            }
+        }
+        
+        async function handleAddExpense(e) {
+            e.preventDefault();
+            const alert = document.getElementById('expenseAlert');
+            
+            try {
+                if (!currentUser || !currentUser.id) {
+                    showAlert(alert, 'Erro: Você precisa estar logado.', 'error');
+                    return;
+                }
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) throw new Error('Cadastre sua barbearia primeiro!');
+                
+                const expense = {
+                    description: document.getElementById('expenseDescription').value,
+                    amount: parseFloat(document.getElementById('expenseAmount').value),
+                    date: document.getElementById('expenseDate').value,
+                    category: document.getElementById('expenseCategory').value,
+                    barbershop_id: shop.id
+                };
+                
+                // Tentar salvar no Supabase primeiro
+                try {
+                    const { error } = await supabase.from('expenses').insert(expense);
+                    if (error) throw error;
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`expenses_${shop.id}`);
+                    let expenses = stored ? JSON.parse(stored) : [];
+                    expenses.push({ ...expense, id: Date.now() });
+                    localStorage.setItem(`expenses_${shop.id}`, JSON.stringify(expenses));
+                }
+                
+                showToast('Sucesso!', 'Despesa adicionada com sucesso', 'success');
+                document.getElementById('expenseForm').reset();
+                document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+                loadExpenses();
+                
+            } catch (error) {
+                showAlert(alert, error.message, 'error');
+            }
+        }
+        
+        async function deleteExpense(index) {
+            if (!confirm('Remover esta despesa?')) return;
+            
+            try {
+                if (!currentUser || !currentUser.id) return;
+                
+                const { data: shop } = await supabase
+                    .from('barbershops')
+                    .select('id')
+                    .eq('barber_id', currentUser.id)
+                    .single();
+                
+                if (!shop) return;
+                
+                // Tentar deletar do Supabase
+                try {
+                    const stored = localStorage.getItem(`expenses_${shop.id}`);
+                    const expenses = stored ? JSON.parse(stored) : [];
+                    const expense = expenses[index];
+                    
+                    if (expense.id) {
+                        await supabase.from('expenses').delete().eq('id', expense.id);
+                    }
+                } catch (error) {
+                    // Se não existir tabela, usar localStorage
+                    const stored = localStorage.getItem(`expenses_${shop.id}`);
+                    let expenses = stored ? JSON.parse(stored) : [];
+                    expenses.splice(index, 1);
+                    localStorage.setItem(`expenses_${shop.id}`, JSON.stringify(expenses));
+                }
+                
+                showToast('Sucesso!', 'Despesa removida', 'success');
+                loadExpenses();
+                
+            } catch (error) {
+                showToast('Erro', 'Erro ao remover despesa: ' + error.message, 'error');
+            }
         }
         
         async function loadServices() {
@@ -1917,9 +3743,10 @@
                 return;
             }
             try {
+                // Buscar todas as colunas da barbearia
                 const { data: shop } = await supabase
                     .from('barbershops')
-                    .select('*')
+                    .select('id, name, description, address, neighborhood, city, state, zip_code, phone, email, whatsapp, business_hours, cover_image, profile_image, barber_id, owner_profile_id, owner_name')
                     .eq('barber_id', currentUser.id)
                     .single();
                 
@@ -1933,37 +3760,36 @@
                     document.getElementById('shopZip').value = shop.zip_code || '';
                     document.getElementById('shopPhone').value = shop.phone || '';
                     document.getElementById('shopEmail').value = shop.email || '';
+                    document.getElementById('shopWhatsapp').value = shop.whatsapp || '';
                     
                     // Mostrar fotos se existirem
                     if (shop.cover_image) {
                         document.getElementById('coverPreview').src = shop.cover_image;
                         document.getElementById('coverPreview').style.display = 'block';
                     }
+                    
                     if (shop.profile_image) {
                         document.getElementById('profilePreview').src = shop.profile_image;
                         document.getElementById('profilePreview').style.display = 'block';
                     }
                     
-                    // Carregar horários de funcionamento (se a coluna existir)
-                    try {
-                        if (shop.business_hours) {
-                            const hours = typeof shop.business_hours === 'string' 
-                                ? JSON.parse(shop.business_hours) 
-                                : shop.business_hours;
-                            
-                            if (hours && hours.start) {
-                                document.getElementById('shopOpenTime').value = hours.start;
-                            }
-                            if (hours && hours.end) {
-                                document.getElementById('shopCloseTime').value = hours.end;
-                            }
-                            if (hours && hours.interval) {
-                                document.getElementById('shopInterval').value = hours.interval;
-                            }
+                    // Carregar horários de funcionamento
+                    if (shop.business_hours) {
+                        const hours = typeof shop.business_hours === 'string' 
+                            ? JSON.parse(shop.business_hours) 
+                            : shop.business_hours;
+                        
+                        if (hours && hours.start) {
+                            document.getElementById('shopOpenTime').value = hours.start;
                         }
-                    } catch (e) {
-                        console.warn('⚠️ Erro ao carregar horários (coluna pode não existir):', e);
-                        // Usar valores padrão se não conseguir carregar
+                        if (hours && hours.end) {
+                            document.getElementById('shopCloseTime').value = hours.end;
+                        }
+                        if (hours && hours.interval) {
+                            document.getElementById('shopInterval').value = hours.interval;
+                        }
+                    } else {
+                        // Usar valores padrão se não houver horários salvos
                         document.getElementById('shopOpenTime').value = '08:00';
                         document.getElementById('shopCloseTime').value = '19:00';
                         document.getElementById('shopInterval').value = '30';
@@ -2079,7 +3905,7 @@
                         zip_code: document.getElementById('shopZip').value,
                         phone: document.getElementById('shopPhone').value || null,
                         email: document.getElementById('shopEmail').value || null,
-                        is_active: true,
+                        whatsapp: document.getElementById('shopWhatsapp').value || null,
                         business_hours: {
                             start: openTime,
                             end: closeTime,
@@ -2089,44 +3915,32 @@
                     
                     console.log('📤 Dados para atualizar:', updateData);
                     
-                    // Adicionar URLs das imagens se foram atualizadas
+                    // Adicionar URLs das imagens se foram atualizadas (colunas opcionais)
                     const coverImage = document.getElementById('coverImage').files[0];
                     const profileImage = document.getElementById('profileImage').files[0];
                     
-                    if (coverImage) {
-                        console.log('📷 Fazendo upload da capa...');
-                        const coverUrl = await uploadImage(coverImage, `barbershops/${existingShop.id}/cover`);
-                        updateData.cover_image = coverUrl;
+                    try {
+                        if (coverImage) {
+                            console.log('📷 Fazendo upload da capa...');
+                            const coverUrl = await uploadImage(coverImage, `barbershops/${existingShop.id}/cover`);
+                            updateData.cover_image = coverUrl;
+                        }
+                    } catch (imgError) {
+                        console.warn('⚠️ Erro ao fazer upload da capa ou coluna não existe:', imgError);
                     }
                     
-                    if (profileImage) {
-                        console.log('📷 Fazendo upload do perfil...');
-                        const profileUrl = await uploadImage(profileImage, `barbershops/${existingShop.id}/profile`);
-                        updateData.profile_image = profileUrl;
+                    try {
+                        if (profileImage) {
+                            console.log('📷 Fazendo upload do perfil...');
+                            const profileUrl = await uploadImage(profileImage, `barbershops/${existingShop.id}/profile`);
+                            updateData.profile_image = profileUrl;
+                        }
+                    } catch (imgError) {
+                        console.warn('⚠️ Erro ao fazer upload do perfil ou coluna não existe:', imgError);
                     }
                     
                     console.log('💾 Salvando no banco...');
                     let { error } = await supabase.from('barbershops').update(updateData).eq('id', existingShop.id);
-                    
-                    // Se der erro de coluna não encontrada, tentar sem business_hours
-                    if (error && (error.message.includes('business_hours') || error.message.includes('column') || error.message.includes('schema cache'))) {
-                        console.warn('⚠️ Coluna business_hours não existe, tentando salvar sem ela...');
-                        const { business_hours, ...updateDataWithoutHours } = updateData;
-                        const { error: retryError } = await supabase.from('barbershops').update(updateDataWithoutHours).eq('id', existingShop.id);
-                        
-                        if (retryError) {
-                            console.error('❌ Erro do Supabase:', retryError);
-                            throw retryError;
-                        }
-                        
-                        // Mostrar aviso para executar SQL
-                        if (alert) {
-                            showAlert(alert, '⚠️ Barbearia atualizada, mas horários não foram salvos. Execute o SQL add_business_hours_column.sql no Supabase para habilitar horários.', 'error');
-                        } else {
-                            alert('⚠️ Barbearia atualizada, mas execute o SQL add_business_hours_column.sql no Supabase.');
-                        }
-                        return;
-                    }
                     
                     if (error) {
                         console.error('❌ Erro do Supabase:', error);
@@ -2163,7 +3977,7 @@
                         zip_code: document.getElementById('shopZip').value,
                         phone: document.getElementById('shopPhone').value || null,
                         email: document.getElementById('shopEmail').value || null,
-                        is_active: true,
+                        whatsapp: document.getElementById('shopWhatsapp').value || null,
                         business_hours: {
                             start: openTime,
                             end: closeTime,
@@ -2176,26 +3990,7 @@
                     
                     let { data: newShop, error: insertError } = await supabase.from('barbershops').insert(insertData).select().single();
                     
-                    // Se der erro de coluna não encontrada, tentar sem business_hours
-                    if (insertError && (insertError.message.includes('business_hours') || insertError.message.includes('column') || insertError.message.includes('schema cache'))) {
-                        console.warn('⚠️ Coluna business_hours não existe, tentando inserir sem ela...');
-                        const { business_hours, ...insertDataWithoutHours } = insertData;
-                        const { data: retryShop, error: retryError } = await supabase.from('barbershops').insert(insertDataWithoutHours).select().single();
-                        
-                        if (retryError) {
-                            console.error('❌ Erro do Supabase ao inserir:', retryError);
-                            throw retryError;
-                        }
-                        
-                        newShop = retryShop;
-                        
-                        // Mostrar aviso para executar SQL
-                        if (alert) {
-                            showAlert(alert, '⚠️ Barbearia criada, mas horários não foram salvos. Execute o SQL add_business_hours_column.sql no Supabase e atualize os horários depois.', 'error');
-                        } else {
-                            alert('⚠️ Barbearia criada, mas execute o SQL add_business_hours_column.sql no Supabase.');
-                        }
-                    } else if (insertError) {
+                    if (insertError) {
                         console.error('❌ Erro do Supabase ao inserir:', insertError);
                         throw insertError;
                     }
@@ -2210,10 +4005,15 @@
                         try {
                             console.log('📷 Fazendo upload da capa...');
                             const coverUrl = await uploadImage(coverImage, `barbershops/${newShop.id}/cover`);
-                            await supabase.from('barbershops').update({ cover_image: coverUrl }).eq('id', newShop.id);
+                            const { error: updateImgError } = await supabase.from('barbershops').update({ cover_image: coverUrl }).eq('id', newShop.id);
+                            
+                            if (updateImgError) {
+                                throw updateImgError;
+                            }
                             console.log('✅ Capa atualizada');
                         } catch (imgError) {
-                            console.error('Erro ao fazer upload da capa:', imgError);
+                            console.error('❌ Erro ao fazer upload da capa:', imgError);
+                            throw imgError;
                         }
                     }
                     
@@ -2221,10 +4021,15 @@
                         try {
                             console.log('📷 Fazendo upload do perfil...');
                             const profileUrl = await uploadImage(profileImage, `barbershops/${newShop.id}/profile`);
-                            await supabase.from('barbershops').update({ profile_image: profileUrl }).eq('id', newShop.id);
+                            const { error: updateImgError } = await supabase.from('barbershops').update({ profile_image: profileUrl }).eq('id', newShop.id);
+                            
+                            if (updateImgError) {
+                                throw updateImgError;
+                            }
                             console.log('✅ Perfil atualizado');
                         } catch (imgError) {
-                            console.error('Erro ao fazer upload do perfil:', imgError);
+                            console.error('❌ Erro ao fazer upload do perfil:', imgError);
+                            throw imgError;
                         }
                     }
                     
@@ -2352,25 +4157,35 @@
         async function logout() {
             console.log('🔒 Fazendo logout...');
             
+            // Limpar Realtime subscriptions
+            cleanupRealtimeSubscriptions();
+            
+            // Parar polling
+            stopPolling();
+            
             try {
-                // Fazer logout no Supabase (não esperar se der erro)
-                supabase.auth.signOut().catch(err => {
-                    console.warn('⚠️ Erro no signOut (continuando mesmo assim):', err);
-                });
+                // Fazer logout no Supabase
+                await supabase.auth.signOut();
             } catch (err) {
-                console.warn('⚠️ Erro ao chamar signOut (continuando mesmo assim):', err);
+                console.warn('⚠️ Erro no signOut (continuando mesmo assim):', err);
             }
             
             // Limpar dados locais IMEDIATAMENTE
             currentUser = null;
             window.currentUser = null;
             
-            // Limpar localStorage
+            // Limpar localStorage e sessionStorage
             try {
-                localStorage.removeItem('supabase.auth.token');
-                localStorage.removeItem('sb-' + SUPABASE_URL.split('//')[1].split('.')[0] + '-auth-token');
+                localStorage.clear();
+                sessionStorage.clear();
             } catch (e) {
-                console.warn('⚠️ Erro ao limpar localStorage:', e);
+                console.warn('⚠️ Erro ao limpar storage:', e);
+            }
+            
+            // Esconder conteúdo do painel
+            const mainLayout = document.querySelector('.main-layout');
+            if (mainLayout) {
+                mainLayout.style.display = 'none';
             }
             
             // Mostrar tela de login IMEDIATAMENTE
@@ -2379,23 +4194,203 @@
             console.log('✅ Logout concluído');
         }
         
-        // Verificar autenticação ao carregar
-        checkAuth().then(async () => {
-            // Garantir que currentUser está atualizado
-            if (!currentUser || !currentUser.id) {
-                try {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user && user.id) {
-                        currentUser = user;
-                        console.log('✅ currentUser atualizado na inicialização:', currentUser.id);
-                    }
-                } catch (error) {
-                    console.error('Erro ao atualizar currentUser:', error);
-                }
+        // Função para verificar se há hash de reset de senha na URL
+        async function checkPasswordReset() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hash = window.location.hash;
+            
+            // Verificar se há hash de reset do Supabase Auth
+            if (hash.includes('type=recovery') || hash.includes('access_token')) {
+                // Mostrar formulário de nova senha
+                showResetPasswordForm();
+                // Limpar hash da URL
+                window.history.replaceState(null, '', window.location.pathname);
+                return true;
             }
             
-            if (currentUser && currentUser.id) {
-                loadBarberDashboard();
+            return false;
+        }
+        
+        // Função para mostrar formulário de nova senha
+        function showResetPasswordForm() {
+            const modal = document.createElement('div');
+            modal.id = 'resetPasswordModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+            modal.innerHTML = `
+                <div style="background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 40px; max-width: 450px; width: 90%;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2 style="color: #e50914; font-size: 1.5rem; margin-bottom: 10px;">Redefinir Senha</h2>
+                        <p style="color: #999; font-size: 0.9rem;">Digite sua nova senha</p>
+                    </div>
+                    <div id="resetPasswordAlert" class="alert"></div>
+                    <form id="resetPasswordForm" onsubmit="handleResetPassword(event)">
+                        <div class="form-group">
+                            <label>Nova Senha</label>
+                            <input type="password" id="newPassword" required placeholder="Mínimo 6 caracteres" minlength="6" autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label>Confirmar Nova Senha</label>
+                            <input type="password" id="confirmPassword" required placeholder="Digite a senha novamente" minlength="6" autocomplete="new-password">
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn" style="flex: 1;">Redefinir Senha</button>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('resetPasswordModal').remove(); window.location.href='barberflix-barbeiro.html';" style="flex: 1;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        // Função para processar redefinição de senha
+        async function handleResetPassword(e) {
+            e.preventDefault();
+            const alert = document.getElementById('resetPasswordAlert');
+            const btn = e.target.querySelector('button[type="submit"]');
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Redefinindo...';
+                
+                if (!newPassword || newPassword.length < 6) {
+                    throw new Error('A senha deve ter no mínimo 6 caracteres');
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    throw new Error('As senhas não coincidem');
+                }
+                
+                showAlert(alert, 'Atualizando senha...', 'success');
+                
+                // Atualizar senha no Supabase Auth
+                const { error } = await supabase.auth.updateUser({
+                    password: newPassword
+                });
+                
+                if (error) {
+                    throw new Error('Erro ao redefinir senha: ' + error.message);
+                }
+                
+                showAlert(alert, '✅ Senha redefinida com sucesso! Redirecionando para o login...', 'success');
+                
+                // Fechar modal e redirecionar após 2 segundos
+                setTimeout(() => {
+                    const modal = document.getElementById('resetPasswordModal');
+                    if (modal) modal.remove();
+                    window.location.href = 'barberflix-barbeiro.html';
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Erro ao redefinir senha:', error);
+                showAlert(alert, '❌ ' + (error.message || 'Erro ao redefinir senha'), 'error');
+                btn.disabled = false;
+                btn.textContent = 'Redefinir Senha';
+            }
+        }
+        
+        // ========================================
+        // SISTEMA DE POLLING PARA ATUALIZAÇÃO AUTOMÁTICA
+        // ========================================
+        let pollingInterval = null;
+        const POLLING_INTERVAL = 30000; // 30 segundos
+        
+        function startPolling() {
+            // Limpar intervalo anterior se existir
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            // Iniciar polling
+            pollingInterval = setInterval(() => {
+                // Só atualizar se estiver nas abas relevantes
+                const activeTab = document.querySelector('.tab-content.active');
+                if (activeTab) {
+                    const tabId = activeTab.id;
+                    if (tabId === 'dashboard') {
+                        console.log('🔄 Polling: Atualizando dashboard...');
+                        loadBarberDashboard();
+                    } else if (tabId === 'appointments') {
+                        console.log('🔄 Polling: Atualizando agendamentos...');
+                        loadAppointments();
+                    }
+                }
+            }, POLLING_INTERVAL);
+            
+            console.log('✅ Polling iniciado (atualização a cada 30s)');
+        }
+        
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+                console.log('🛑 Polling parado');
+            }
+        }
+        
+        // Listener para mudanças de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            console.log('🔐 Auth state changed:', event, session?.user?.id);
+            
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                window.currentUser = null;
+                cleanupRealtimeSubscriptions();
+                stopPolling();
+                showLoginScreen();
+            } else if (event === 'SIGNED_IN' && session) {
+                // Sessão foi restaurada ou criada
+                currentUser = session.user;
+                window.currentUser = session.user;
+                startPolling();
+            } else if (event === 'TOKEN_REFRESHED' && session) {
+                // Token foi renovado
+                currentUser = session.user;
+                window.currentUser = session.user;
+            }
+        });
+        
+        // Listener para redimensionamento da janela (fechar menu mobile se tela ficar grande)
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                const sidebar = document.querySelector('.sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (sidebar) sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+        
+        // Prevenir zoom em inputs no iOS
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputs = document.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                if (input.type !== 'file') {
+                    input.style.fontSize = '16px'; // Previne zoom no iOS
+                }
+            });
+        });
+        
+        // Sempre iniciar verificando reset de senha primeiro
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Verificar se há reset de senha na URL
+            const hasReset = await checkPasswordReset();
+            
+            // Se não houver reset, verificar autenticação
+            if (!hasReset) {
+                checkAuth();
             }
         });
     </script>
